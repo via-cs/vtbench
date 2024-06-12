@@ -60,6 +60,11 @@ def display_chart(image_path):
     img = Image.open(image_path)
     img.show()
 
+def accuracy_fn(y_true, y_pred):
+    correct = torch.eq(y_true, y_pred).sum().item()
+    acc = (correct / len(y_pred))*100
+    return acc
+
 # Example usage
 if __name__ == "__main__":
     # Generate some sample data
