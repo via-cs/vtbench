@@ -17,7 +17,7 @@ def create_area_chart(time_series, save_path):
 
 def create_bar_chart(time_series, save_path):
     plt.figure()
-    plt.bar(range(len(time_series)), time_series, color="skyblue", width = 1.0)
+    plt.bar(range(len(time_series)), time_series, color="skyblue", edgecolor="black", width=1.0)
     plt.title('Bar Chart')
     plt.xlabel('Time')
     plt.ylabel('Value')
@@ -62,27 +62,5 @@ def display_chart(image_path):
 
 def accuracy_fn(y_true, y_pred):
     correct = torch.eq(y_true, y_pred).sum().item()
-    acc = (correct / len(y_pred))*100
+    acc = (correct / len(y_pred)) * 100
     return acc
-
-# Example usage
-if __name__ == "__main__":
-    # Generate some sample data
-    def generate_sample_data(length, num_samples):
-        time_series_data = []
-        for _ in range(num_samples):
-            time_series = np.sin(np.linspace(0, 2 * np.pi, length)) + np.random.normal(scale=0.1, size=length)
-            time_series_data.append(time_series)
-        return time_series_data
-
-    sample_data = generate_sample_data(100, 5)
-
-    # Generate and display charts for the sample data
-    for i, ts in enumerate(sample_data):
-        area_path = f'area_chart_{i}.png'
-        bar_path = f'bar_chart_{i}.png'
-        create_area_chart(ts, area_path)
-        create_bar_chart(ts, bar_path)
-        print(f'Displaying {area_path} and {bar_path}')
-        display_chart(area_path)
-        display_chart(bar_path)
