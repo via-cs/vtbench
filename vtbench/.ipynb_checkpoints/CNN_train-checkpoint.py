@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 import matplotlib.pyplot as plt
 from vtbench.mcCNN_utils import TimeSeriesImageDatasetMC
+from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score, confusion_matrix, balanced_accuracy_score
 
 def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
     transform = transforms.Compose([
@@ -34,6 +35,8 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
 
 def train_model(model, train_loader, val_loader, num_epochs, patience=10):
     criterion = nn.CrossEntropyLoss()
+    class_weights = torch.tensor([1.0, 1.5, 2.5, 2.5, 2.5], dtype=torch.float).to(device)  
+    criterion = nn.CrossEntropyLoss(weight=class_weights)
     optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.01)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5, verbose=True)
 
@@ -99,6 +102,9 @@ def evaluate_model(model, test_loader):
     total = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    y_true = []
+    y_pred = []
+
     with torch.inference_mode():
         for images, labels in test_loader:
             images, labels = images.to(device), labels.to(device)
@@ -108,9 +114,29 @@ def evaluate_model(model, test_loader):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(predicted.cpu().numpy())
+
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
+
+
+    precision = precision_score(y_true, y_pred, average='weighted')
+    recall = recall_score(y_true, y_pred, average='weighted')
+    f1 = f1_score(y_true, y_pred, average='weighted')
+    auc = roc_auc_score(y_true, y_probs, multi_class='ovr')
+    conf_matrix = confusion_matrix(y_true, y_pred)
+    balanced_acc = balanced_accuracy_score(y_true, y_pred)
+
+    print(f'Precision: {precision:.2f}')
+    print(f'Recall: {recall:.2f}')
+    print(f'F1 Score: {f1:.2f}')
+    print(f'AUC: {auc:.2f}')
+    print(f'Balanced Accuracy: {balanced_acc:.2f}')
+    print('Confusion Matrix:')
+    print(conf_matrix)
+    
     return test_loss, test_accuracy
 
 def plot_class_distribution(y_train, nb_classes):

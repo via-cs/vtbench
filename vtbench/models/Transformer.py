@@ -14,7 +14,7 @@ class TransformerModel(nn.Module):
     
     def forward(self, src):
         src = self.embedding(src) * torch.sqrt(torch.tensor(self.d_model, dtype=torch.float32)).to(src.device)
-        src = src.permute(1, 0, 2)  # Transformer expects [seq_len, batch_size, d_model]
+        src = src.permute(1, 0, 2)  
         memory = self.transformer_encoder(src)
         output = self.fc(memory[-1])
         return output

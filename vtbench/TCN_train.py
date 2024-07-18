@@ -4,13 +4,10 @@ import torch.optim as optim
 import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import matplotlib.pyplot as plt
-from vtbench.data_utils import read_ucr, normalize_data, apply_smote, to_torch_tensors
-from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix, balanced_accuracy_score
-from vtbench.models.Transformer import TransformerModel
+from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score, confusion_matrix, balanced_accuracy_score
+from vtbench.models.TCN import TCN  # Adjust the import based on where you save the model
 
 def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
-    # Ensure X_train and X_test are 3D tensors with shape [batch_size, seq_length, input_size]
-    # No need to add an extra dimension as Transformer input should be of shape [batch_size, seq_length, input_size]
     
     # Create full datasets
     train_dataset = TensorDataset(X_train, y_train)
@@ -97,6 +94,7 @@ def evaluate_model(model, test_loader):
 
     y_true = []
     y_pred = []
+    y_probs = []
 
     with torch.inference_mode():
         for inputs, labels in test_loader:
@@ -109,25 +107,29 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
+            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy())
 
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
 
-
+    # Calculate additional metrics
     precision = precision_score(y_true, y_pred, average='weighted')
     recall = recall_score(y_true, y_pred, average='weighted')
     f1 = f1_score(y_true, y_pred, average='weighted')
     conf_matrix = confusion_matrix(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_probs, multi_class='ovr')
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
 
     print(f'Precision: {precision:.2f}')
     print(f'Recall: {recall:.2f}')
     print(f'F1 Score: {f1:.2f}')
+    print(f'AUC: {auc:.2f}')
     print(f'Balanced Accuracy: {balanced_acc:.2f}')
     print('Confusion Matrix:')
     print(conf_matrix)
-    return test_loss, test_accuracy
+
+    return test_loss, test_accuracy, precision, recall, f1, auc, balanced_acc
 
 def plot_class_distribution(y_train, nb_classes):
     plt.hist(y_train.numpy(), bins=nb_classes, edgecolor='k')

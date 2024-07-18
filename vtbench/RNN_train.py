@@ -5,6 +5,7 @@ import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import matplotlib.pyplot as plt
 from vtbench.data_utils import read_ucr, normalize_data, apply_smote, to_torch_tensors
+from sklearn.metrics import precision_score, recall_score, roc_auc_curve, f1_score, confusion_matrix, balanced_accuracy_score
 from vtbench.models.RNN import RNN
 
 def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
@@ -94,6 +95,9 @@ def evaluate_model(model, test_loader):
     total = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    y_true = []
+    y_pred = []
+
     with torch.inference_mode():
         for inputs, labels in test_loader:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -103,9 +107,29 @@ def evaluate_model(model, test_loader):
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(predicted.cpu().numpy())
+
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
+
+    # Calculate additional metrics
+    precision = precision_score(y_true, y_pred, average='weighted')
+    recall = recall_score(y_true, y_pred, average='weighted')
+    f1 = f1_score(y_true, y_pred, average='weighted')
+    conf_matrix = confusion_matrix(y_true, y_pred)
+    auc = roc_auc_score(y_true, y_probs, multi_class='ovr')
+    balanced_acc = balanced_accuracy_score(y_true, y_pred)
+
+    print(f'Precision: {precision:.2f}')
+    print(f'Recall: {recall:.2f}')
+    print(f'F1 Score: {f1:.2f}')
+    print(f'ROC: {roc:.2f}')
+    print(f'Balanced Accuracy: {balanced_acc:.2f}')
+    print('Confusion Matrix:')
+    print(conf_matrix)
+
     return test_loss, test_accuracy
 
 def plot_class_distribution(y_train, nb_classes):
