@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from vtbench.mcCNN_utils import TimeSeriesImageDatasetMC
 from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score, confusion_matrix, balanced_accuracy_score
 
+torch.backends.cudnn.enabled = False
+
 def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
     transform = transforms.Compose([
         transforms.Resize((64, 64)),
@@ -35,8 +37,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
 
 def train_model(model, train_loader, val_loader, num_epochs, patience=10):
     criterion = nn.CrossEntropyLoss()
-    class_weights = torch.tensor([1.0, 1.5, 2.5, 2.5, 2.5], dtype=torch.float).to(device)  
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.01)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5, verbose=True)
 
@@ -50,6 +51,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
         correct = 0
         total = 0
         for images, labels in train_loader:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             images, labels = images.to(device), labels.to(device)
             optimizer.zero_grad()
             outputs = model(images)
@@ -70,6 +72,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
         total = 0
         with torch.inference_mode():
             for images, labels in val_loader:
+                device = "cuda" if torch.cuda.is_available() else "cpu"
                 images, labels = images.to(device), labels.to(device)
                 outputs = model(images)
                 loss = criterion(outputs, labels)
@@ -94,6 +97,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
 
     print(f'Best Validation Accuracy: {best_val_accuracy:.2f}%')
 
+
 def evaluate_model(model, test_loader):
     criterion = nn.CrossEntropyLoss()
     model.eval()
@@ -101,9 +105,11 @@ def evaluate_model(model, test_loader):
     correct = 0
     total = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
     y_true = []
     y_pred = []
+    y_probs = []
 
     with torch.inference_mode():
         for images, labels in test_loader:
@@ -116,11 +122,11 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
+            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy())
 
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
-
 
     precision = precision_score(y_true, y_pred, average='weighted')
     recall = recall_score(y_true, y_pred, average='weighted')
@@ -136,8 +142,9 @@ def evaluate_model(model, test_loader):
     print(f'Balanced Accuracy: {balanced_acc:.2f}')
     print('Confusion Matrix:')
     print(conf_matrix)
-    
+
     return test_loss, test_accuracy
+
 
 def plot_class_distribution(y_train, nb_classes):
     plt.hist(y_train.numpy(), bins=nb_classes, edgecolor='k')

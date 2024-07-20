@@ -91,9 +91,11 @@ def evaluate_model(model, test_loader):
     correct = 0
     total = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
     y_true = []
     y_pred = []
+    y_probs = []
 
     with torch.inference_mode():
         for inputs, labels in test_loader:
@@ -106,17 +108,17 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
+            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy())
 
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
 
-    # Calculate additional metrics
     precision = precision_score(y_true, y_pred, average='weighted')
     recall = recall_score(y_true, y_pred, average='weighted')
     f1 = f1_score(y_true, y_pred, average='weighted')
-    conf_matrix = confusion_matrix(y_true, y_pred)
     auc = roc_auc_score(y_true, y_probs, multi_class='ovr')
+    conf_matrix = confusion_matrix(y_true, y_pred)
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
 
     print(f'Precision: {precision:.2f}')

@@ -5,13 +5,14 @@ import numpy as np
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import matplotlib.pyplot as plt
 from vtbench.data_utils import read_ucr, normalize_data, apply_smote, to_torch_tensors
-from sklearn.metrics import precision_score, recall_score, roc_auc_curve, f1_score, confusion_matrix, balanced_accuracy_score
+from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score, confusion_matrix, balanced_accuracy_score
 from vtbench.models.RNN import RNN
 
 def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
-    # Ensure X_train and X_test are 3D tensors with shape [batch_size, seq_length, input_size]
-    # No need to add an extra dimension as RNN input should be of shape [batch_size, seq_length, input_size]
-    
+    # Reshape X_train and X_test to have shape [batch_size, seq_length, input_size]
+    X_train = X_train.unsqueeze(-1)  # Add the input_size dimension
+    X_test = X_test.unsqueeze(-1)    # Add the input_size dimension
+
     # Create full datasets
     train_dataset = TensorDataset(X_train, y_train)
     test_dataset = TensorDataset(X_test, y_test)
@@ -28,6 +29,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
 
     return train_loader, val_loader, test_loader
 
+
 def train_model(model, train_loader, val_loader, num_epochs, patience=10):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.0005, weight_decay=0.01)
@@ -36,6 +38,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
     best_val_accuracy = 0
     trigger_times = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
     for epoch in range(num_epochs):
         model.train()
@@ -87,6 +90,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
 
     print(f'Best Validation Accuracy: {best_val_accuracy:.2f}%')
 
+
 def evaluate_model(model, test_loader):
     criterion = nn.CrossEntropyLoss()
     model.eval()
@@ -94,9 +98,11 @@ def evaluate_model(model, test_loader):
     correct = 0
     total = 0
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
     y_true = []
     y_pred = []
+    y_probs = []
 
     with torch.inference_mode():
         for inputs, labels in test_loader:
@@ -109,28 +115,29 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
+            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy())
 
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')
 
-    # Calculate additional metrics
     precision = precision_score(y_true, y_pred, average='weighted')
     recall = recall_score(y_true, y_pred, average='weighted')
     f1 = f1_score(y_true, y_pred, average='weighted')
-    conf_matrix = confusion_matrix(y_true, y_pred)
     auc = roc_auc_score(y_true, y_probs, multi_class='ovr')
+    conf_matrix = confusion_matrix(y_true, y_pred)
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
 
     print(f'Precision: {precision:.2f}')
     print(f'Recall: {recall:.2f}')
     print(f'F1 Score: {f1:.2f}')
-    print(f'ROC: {roc:.2f}')
+    print(f'AUC: {auc:.2f}')
     print(f'Balanced Accuracy: {balanced_acc:.2f}')
     print('Confusion Matrix:')
     print(conf_matrix)
 
     return test_loss, test_accuracy
+
 
 def plot_class_distribution(y_train, nb_classes):
     plt.hist(y_train.numpy(), bins=nb_classes, edgecolor='k')

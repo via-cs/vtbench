@@ -1,43 +1,152 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-class TemporalBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size, stride, dilation, padding, dropout=0.2):
-        super(TemporalBlock, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation)
-        self.bn1 = nn.BatchNorm1d(out_channels)
-        self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(dropout)
+class Small_TCN(nn.Module):
+    def __init__(self, num_inputs, num_channels, num_classes):
+        super(Small_TCN, self).__init__()
+        Kt = 11  # Kernel size
+        pt = 0.3  # Dropout probability
+        Ft = num_channels  # Number of filters
         
-        self.conv2 = nn.Conv1d(out_channels, out_channels, kernel_size, stride=stride, padding=padding, dilation=dilation)
-        self.bn2 = nn.BatchNorm1d(out_channels)
-        self.relu2 = nn.ReLU()
-        self.dropout2 = nn.Dropout(dropout)
+        self.pad0 = nn.ConstantPad1d(padding=(Kt-1, 0), value=0)
+        self.conv0 = nn.Conv1d(in_channels=num_inputs, out_channels=Ft, kernel_size=Kt, bias=False)
+        self.act0 = nn.ReLU()
+        self.batchnorm0 = nn.BatchNorm1d(num_features=Ft)
 
-        self.net = nn.Sequential(self.conv1, self.bn1, self.relu1, self.dropout1, self.conv2, self.bn2, self.relu2, self.dropout2)
-        self.downsample = nn.Conv1d(in_channels, out_channels, 1) if in_channels != out_channels else None
-        self.relu = nn.ReLU()
+        # First block
+        dilation = 1
+        self.pad1 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv1 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm1 = nn.BatchNorm1d(num_features=Ft)
+        self.act1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(p=pt)
+        self.pad2 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv2 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm2 = nn.BatchNorm1d(num_features=Ft)
+        self.act2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(p=pt)
+        
+        # Second block
+        dilation = 2
+        self.pad3 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv3 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm3 = nn.BatchNorm1d(num_features=Ft)
+        self.act3 = nn.ReLU()
+        self.dropout3 = nn.Dropout(p=pt)
+        self.pad4 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv4 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm4 = nn.BatchNorm1d(num_features=Ft)
+        self.act4 = nn.ReLU()
+        self.dropout4 = nn.Dropout(p=pt)
+        
+        # Third block
+        dilation = 4
+        self.pad5 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv5 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm5 = nn.BatchNorm1d(num_features=Ft)
+        self.act5 = nn.ReLU()
+        self.dropout5 = nn.Dropout(p=pt)
+        self.pad6 = nn.ConstantPad1d(padding=((Kt-1) * dilation, 0), value=0)
+        self.conv6 = nn.Conv1d(in_channels=Ft, out_channels=Ft, kernel_size=Kt, dilation=dilation, bias=False)
+        self.batchnorm6 = nn.BatchNorm1d(num_features=Ft)
+        self.act6 = nn.ReLU()
+        self.dropout6 = nn.Dropout(p=pt)
+
+        # Flatten and linear layer
+        self.flatten = nn.Flatten()
+        self.fc = nn.Linear(self._get_flatten_size(num_inputs, 139), num_classes)  # Adjust input size accordingly
+
+    def _get_flatten_size(self, num_inputs, seq_length):
+        x = torch.zeros(1, num_inputs, seq_length)
+        x = self.pad0(x)
+        x = self.conv0(x)
+        x = self.batchnorm0(x)
+        x = self.act0(x)
+        x = self.pad1(x)
+        x = self.conv1(x)
+        x = self.batchnorm1(x)
+        x = self.act1(x)
+        x = self.dropout1(x)
+        x = self.pad2(x)
+        x = self.conv2(x)
+        x = self.batchnorm2(x)
+        x = self.act2(x)
+        x = self.dropout2(x)
+        x = self.pad3(x)
+        x = self.conv3(x)
+        x = self.batchnorm3(x)
+        x = self.act3(x)
+        x = self.dropout3(x)
+        x = self.pad4(x)
+        x = self.conv4(x)
+        x = self.batchnorm4(x)
+        x = self.act4(x)
+        x = self.dropout4(x)
+        x = self.pad5(x)
+        x = self.conv5(x)
+        x = self.batchnorm5(x)
+        x = self.act5(x)
+        x = self.dropout5(x)
+        x = self.pad6(x)
+        x = self.conv6(x)
+        x = self.batchnorm6(x)
+        x = self.act6(x)
+        x = self.dropout6(x)
+        x = self.flatten(x)
+        return x.shape[1]
 
     def forward(self, x):
-        out = self.net(x)
-        res = x if self.downsample is None else self.downsample(x)
-        return self.relu(out + res)
+        # Now we propagate through the network correctly
+        x = self.pad0(x)
+        x = self.conv0(x)
+        x = self.batchnorm0(x)
+        x = self.act0(x)
 
-class TCN(nn.Module):
-    def __init__(self, input_channels, num_channels, num_classes, kernel_size=2, dropout=0.2):
-        super(TCN, self).__init__()
-        layers = []
-        num_levels = len(num_channels)
-        for i in range(num_levels):
-            dilation_size = 2 ** i
-            in_channels = input_channels if i == 0 else num_channels[i-1]
-            out_channels = num_channels[i]
-            layers += [TemporalBlock(in_channels, out_channels, kernel_size, stride=1, dilation=dilation_size, padding=(kernel_size-1) * dilation_size, dropout=dropout)]
+        # TCN
+        # First block
+        res = self.pad1(x)
+        res = self.conv1(res)
+        res = self.batchnorm1(res)
+        res = self.act1(res)
+        res = self.dropout1(res)
+        res = self.pad2(res)
+        res = self.conv2(res)
+        res = self.batchnorm2(res)
+        res = self.act2(res)
+        res = self.dropout2(res)
 
-        self.network = nn.Sequential(*layers)
-        self.fc = nn.Linear(num_channels[-1], num_classes)
+        x = res
 
-    def forward(self, x):
-        y1 = self.network(x)
-        y2 = self.fc(y1[:, :, -1])
-        return y2
+        # Second block
+        res = self.pad3(x)
+        res = self.conv3(res)
+        res = self.batchnorm3(res)
+        res = self.act3(res)
+        res = self.dropout3(res)
+        res = self.pad4(res)
+        res = self.conv4(res)
+        res = self.batchnorm4(res)
+        res = self.act4(res)
+        res = self.dropout4(res)
+
+        x = res
+
+        # Third block
+        res = self.pad5(x)
+        res = self.conv5(res)
+        res = self.batchnorm5(res)
+        res = self.act5(res)
+        res = self.dropout5(res)
+        res = self.pad6(res)
+        res = self.conv6(res)
+        res = self.batchnorm6(res)
+        res = self.act6(res)
+        res = self.dropout6(res)
+
+        x = res
+
+        # Linear layer to classify
+        x = self.flatten(x)
+        o = self.fc(x)
+        return F.log_softmax(o, dim=1)
