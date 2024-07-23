@@ -4,23 +4,38 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
+# def create_area_chart_mc(time_series, save_path):
+#     plt.figure()
+#     plt.fill_between(range(len(time_series)), time_series, color="skyblue", alpha=0.4)
+#     plt.plot(time_series, color="Slateblue", alpha=0.6)
+#     plt.title('Area Chart')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value')
+#     plt.savefig(save_path)
+#     plt.close()
+
+# def create_bar_chart_mc(time_series, save_path):
+#     plt.figure()
+#     plt.bar(range(len(time_series)), time_series, color="skyblue", edgecolor="black", width=1.0)
+#     plt.title('Bar Chart')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value')
+#     plt.savefig(save_path)
+#     plt.close()
+
+# monochrome and without labelling
 def create_area_chart_mc(time_series, save_path):
     plt.figure()
-    plt.fill_between(range(len(time_series)), time_series, color="skyblue", alpha=0.4)
-    plt.plot(time_series, color="Slateblue", alpha=0.6)
-    plt.title('Area Chart')
-    plt.xlabel('Time')
-    plt.ylabel('Value')
-    plt.savefig(save_path)
+    plt.plot(time_series, color="black", alpha=0.6)
+    plt.axis('off') 
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0) 
     plt.close()
 
 def create_bar_chart_mc(time_series, save_path):
     plt.figure()
-    plt.bar(range(len(time_series)), time_series, color="skyblue", edgecolor="black", width=1.0)
-    plt.title('Bar Chart')
-    plt.xlabel('Time')
-    plt.ylabel('Value')
-    plt.savefig(save_path)
+    plt.bar(range(len(time_series)), time_series, color="black", edgecolor="black", width=1.0)
+    plt.axis('off')  # Remove axis
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)  # Save with tight bounding box and no padding
     plt.close()
 
 class TimeSeriesImageDatasetMC(Dataset):
@@ -30,8 +45,8 @@ class TimeSeriesImageDatasetMC(Dataset):
         self.split = split
         self.transform = transform
         self.chart_type = chart_type
-        self.area_chart_dir_mc = f'data/area_charts_mc/{split}'
-        self.bar_chart_dir_mc = f'data/bar_charts_mc/{split}'
+        self.area_chart_dir_mc = f'data/area_charts_mono/{split}'
+        self.bar_chart_dir_mc = f'data/bar_charts_mono/{split}'
         os.makedirs(self.area_chart_dir_mc, exist_ok=True)
         os.makedirs(self.bar_chart_dir_mc, exist_ok=True)
         self._generate_charts()

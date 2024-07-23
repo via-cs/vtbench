@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
+# With colors and labelling
 def create_area_chart(time_series, save_path):
     plt.figure()
     plt.fill_between(range(len(time_series)), time_series, color="skyblue", alpha=0.4)
@@ -24,6 +25,22 @@ def create_bar_chart(time_series, save_path):
     plt.xlabel('Time')
     plt.ylabel('Value')
     plt.savefig(save_path)
+    plt.close()
+
+# Monochrome and plain and no labelling
+def create_area_chart(time_series, save_path):
+    plt.figure()
+    plt.fill_between(range(len(time_series)), time_series, color="black", alpha=0.4)
+    plt.plot(time_series, color="black", alpha=0.6)
+    plt.axis('off') 
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0) 
+    plt.close()
+
+def create_bar_chart(time_series, save_path):
+    plt.figure()
+    plt.bar(range(len(time_series)), time_series, color="black", edgecolor="black", width=1.0)
+    plt.axis('off')  # Remove axis
+    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)  # Save with tight bounding box and no padding
     plt.close()
 
 class TimeSeriesImageDataset(Dataset):
