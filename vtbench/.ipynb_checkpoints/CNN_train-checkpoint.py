@@ -17,8 +17,8 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
     ])
 
     # Create full datasets with split identifiers
-    train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, chart_type='bar')
-    test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, chart_type='bar')
+    train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, chart_type='scatter')
+    test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, chart_type='scatter')
 
     # Split the test data into validation and test sets
     val_size = int(0.5 * len(test_dataset))
@@ -26,7 +26,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
 
     val_dataset, test_dataset = random_split(test_dataset, [val_size, test_size])
 
-    val_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='val', transform=transform, chart_type='bar')
+    val_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='val', transform=transform, chart_type='scatter')
 
     # Create DataLoaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
