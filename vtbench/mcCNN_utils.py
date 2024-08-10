@@ -62,14 +62,14 @@ from torch.utils.data import Dataset
 
 ######################################################### COLOR AND WITH LABELLING BARCHART WITH BORDER - 6 ##########################################################
 
-# def create_bar_chart_mc(time_series, save_path):
-#     plt.figure()
-#     plt.bar(range(len(time_series)), time_series, color='none', edgecolor="blue", width=1.0)
-#     plt.title('Bar Chart')
-#     plt.xlabel('Time')
-# #     plt.ylabel('Value')
-# #     plt.savefig(save_path)
-# #     plt.close()
+def create_bar_chart_mc(time_series, save_path):
+    plt.figure()
+    plt.bar(range(len(time_series)), time_series, color='none', edgecolor="blue", width=1.0)
+    plt.title('Bar Chart')
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.savefig(save_path)
+    plt.close()
 
 
 # # ####################################################### COLOR AND WITHOUT LABELLING AREA CHART - 7  ###########################################################
@@ -128,24 +128,24 @@ from torch.utils.data import Dataset
 
 
 ######################################################### MONOCHROME AND WITH LABELLING AND WITH AREA, LINE, PLAIN SCATTER, BAR FILL - 13, 14, 15, 17   ###########################################################
-def create_area_chart_mc(time_series, save_path):
-    plt.figure()
-    plt.fill_between(range(len(time_series)), time_series, color="black", alpha=0.4)
-    plt.plot(time_series, color="black", alpha=0.6)
-    plt.title('Line Chart')
-    plt.xlabel('Time')
-    plt.ylabel('Value')
-    plt.savefig(save_path) 
-    plt.close()
+# def create_area_chart_mc(time_series, save_path):
+#     plt.figure()
+#     plt.fill_between(range(len(time_series)), time_series, color="black", alpha=0.4)
+#     plt.plot(time_series, color="black", alpha=0.6)
+#     plt.title('Line Chart')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value')
+#     plt.savefig(save_path) 
+#     plt.close()
 
-def create_line_chart_mc(time_series, save_path):
-    plt.figure()
-    plt.plot(time_series, color="black", alpha=0.6)
-    plt.title('Line Chart')
-    plt.xlabel('Time')
-    plt.ylabel('Value') 
-    plt.savefig(save_path) 
-    plt.close()
+# def create_line_chart_mc(time_series, save_path):
+#     plt.figure()
+#     plt.plot(time_series, color="black", alpha=0.6)
+#     plt.title('Line Chart')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value') 
+#     plt.savefig(save_path) 
+#     plt.close()
 
 # # def create_scatter_chart_mc(time_series, save_path):
 # #     plt.figure()
@@ -167,55 +167,55 @@ def create_line_chart_mc(time_series, save_path):
 
 ######################################################### MONOCHROME AND WITH LABELLING BARCHART ONLY BORDER - 18   ##########################################################
 
-def create_bar_chart_mc(time_series, save_path):
-    plt.figure()
-    plt.bar(range(len(time_series)), time_series, color='none', edgecolor="black", width=1.0)
-    plt.title('Bar Chart')
-    plt.xlabel('Time')
-    plt.ylabel('Value')  
-    plt.savefig(save_path) 
-    plt.close()
-
-######################################################### MONOCHROME AND WITH LABELLING SCATTERPLOT JOINED - 16   ############################################################
-
-def create_scatter_chart_mc(time_series, save_path):
-    plt.figure()
-    plt.scatter(range(len(time_series)), time_series, color="black", s = 8)
-    plt.plot(range(len(time_series)), time_series, color="black")
-    plt.title('Scatterplot')
-    plt.xlabel('Time')
-    plt.ylabel('Value')
-    plt.savefig(save_path) 
-    plt.close()
-
-######################################################### MONOCHROME AND WITHOUT LABELLING AREA -  19 ############################################################
-# def create_area_chart_mc(time_series, save_path):
+# def create_bar_chart_mc(time_series, save_path):
 #     plt.figure()
-#     plt.fill_between(range(len(time_series)), time_series, color="black", alpha=0.4)
-#     plt.plot(time_series, color="black", alpha=0.6)
-#     plt.axis("off")
+#     plt.bar(range(len(time_series)), time_series, color='none', edgecolor="black", width=1.0)
+#     plt.title('Bar Chart')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value')  
 #     plt.savefig(save_path) 
 #     plt.close()
 
-######################################################### MONOCHROME AND WITHOUT LABELLING LINE -  20 ###########################################################
-
-# def create_line_chart_mc(time_series, save_path):
-#     plt.figure()
-#     plt.plot(time_series, color="black", alpha=0.6)
-#     plt.axis("off")
-#     plt.savefig(save_path) 
-#     plt.close()
-
-######################################################### MONOCHROME AND WITHOUT LABELLING SCATTER PLAIN -  21 #########################################################
+# ######################################################### MONOCHROME AND WITH LABELLING SCATTERPLOT JOINED - 16   ############################################################
 
 # def create_scatter_chart_mc(time_series, save_path):
 #     plt.figure()
-#     plt.scatter(range(len(time_series)), time_series, color="black")
-#     plt.axis("off")
+#     plt.scatter(range(len(time_series)), time_series, color="black", s = 8)
+#     plt.plot(range(len(time_series)), time_series, color="black")
+#     plt.title('Scatterplot')
+#     plt.xlabel('Time')
+#     plt.ylabel('Value')
 #     plt.savefig(save_path) 
 #     plt.close()
 
-######################################################### MONOCHROME AND WITHOUT LABELLING SCATTER JOIN -  22 ##########################################################
+######################################################### MONOCHROME AND WITHOUT LABELLING AREA -  19 ############################################################
+def create_area_chart_mc(time_series, save_path):
+    plt.figure()
+    plt.fill_between(range(len(time_series)), time_series, color="black", alpha=0.4)
+    plt.plot(time_series, color="black", alpha=0.6)
+    plt.axis("off")
+    plt.savefig(save_path) 
+    plt.close()
+
+######################################################## MONOCHROME AND WITHOUT LABELLING LINE -  20 ###########################################################
+
+def create_line_chart_mc(time_series, save_path):
+    plt.figure()
+    plt.plot(time_series, color="black", alpha=0.6)
+    plt.axis("off")
+    plt.savefig(save_path) 
+    plt.close()
+
+######################################################### MONOCHROME AND WITHOUT LABELLING SCATTER PLAIN -  21 #######################################################
+
+def create_scatter_chart_mc(time_series, save_path):
+    plt.figure()
+    plt.scatter(range(len(time_series)), time_series, color="black")
+    plt.axis("off")
+    plt.savefig(save_path) 
+    plt.close()
+
+######################################################### MONOCHROME AND WITHOUT LABELLING SCATTER JOIN -  22 #########################################################
 
 # def create_scatter_chart_mc(time_series, save_path):
 #     plt.figure()
@@ -225,7 +225,7 @@ def create_scatter_chart_mc(time_series, save_path):
 #     plt.savefig(save_path) 
 #     plt.close()
     
-######################################################## MONOCHROME AND WITHOUT LABELLING BAR FILL -  23 ########################################################
+######################################################## MONOCHROME AND WITHOUT LABELLING BAR FILL -  23 #######################################################
 # def create_bar_chart_mc(time_series, save_path):
 #     plt.figure()
 #     plt.bar(range(len(time_series)), time_series, color="black", edgecolor="black", width=1.0)
@@ -233,7 +233,7 @@ def create_scatter_chart_mc(time_series, save_path):
 #     plt.savefig(save_path) 
 #     plt.close()
 
-######################################################## MONOCHROME AND WITHOUT LABELLING BAR BORDER -  24 #######################################################
+######################################################## MONOCHROME AND WITHOUT LABELLING BAR BORDER -  24 #####################################################
 # def create_bar_chart_mc(time_series, save_path):
 #     plt.figure()
 #     plt.bar(range(len(time_series)), time_series, color="none", edgecolor="black", width=1.0)
@@ -248,10 +248,10 @@ class TimeSeriesImageDatasetMC(Dataset):
         self.split = split
         self.transform = transform
         self.chart_type = chart_type
-        self.area_chart_dir_mc = f'data/13area_charts_mono_wlabel/{split}'
-        self.line_chart_dir_mc = f'data/14line_charts_mono_wlabel/{split}'
-        self.scatter_chart_dir_mc = f'data/16scatter_charts_mono_label_joined/{split}'
-        self.bar_chart_dir_mc = f'data/18bar_charts_mono_border_label/{split}'
+        self.area_chart_dir_mc = f'data/19area_charts_mono_nolabel/{split}'
+        self.line_chart_dir_mc = f'data/20line_charts_mono_nolabel/{split}'
+        self.scatter_chart_dir_mc = f'data/21scatter_charts_mono_nolabel_plain/{split}'
+        self.bar_chart_dir_mc = f'data/6bar_charts_color_border_label/{split}'
         os.makedirs(self.area_chart_dir_mc, exist_ok=True)
         os.makedirs(self.bar_chart_dir_mc, exist_ok=True)
         os.makedirs(self.scatter_chart_dir_mc, exist_ok=True)
