@@ -15,25 +15,88 @@ def create_dataloaders(X_train, y_train, X_test, y_test, batch_size=32):
         transforms.Resize((64, 64)),
         transforms.ToTensor(),
     ])
+    chart_types = ['area', 'line', 'bar', 'scatter'] 
+    color_modes = ['color', 'monochrome']
+    label_modes = ['with_label', 'without_label']
+    scatter_modes = ['plain', 'join']  # Specific to scatter charts
+    bar_modes = ['fill', 'border'] 
+   
+    dataloaders = {}
 
-    # Create full datasets with split identifiers
-    train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, chart_type='scatter')
-    test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, chart_type='scatter')
+    for chart_type in chart_types:
+        for color_mode in color_modes:
+            for label_mode in label_modes:
+                if chart_type == 'scatter':
+                    for scatter_mode in scatter_modes:
+                        print(f"\nRunning model with chart_type: {chart_type}, scatter_mode: {scatter_mode}, color_mode: {color_mode}, label_mode: {label_mode}")
+    
+                        train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, 
+                                                             chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode)
+                        test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, 
+                                                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode)
 
-    # Split the test data into validation and test sets
-    val_size = int(0.5 * len(test_dataset))
-    test_size = len(test_dataset) - val_size
+                        # Split the test data into validation and test sets
+                        val_size = 500
+                        test_size = len(test_dataset) - val_size
+                        val_dataset, test_dataset = random_split(test_dataset, [val_size, test_size])
+    
+                        # Create DataLoaders
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+                        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+                        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    
+                        # Store the DataLoaders in the dictionary
+                        combo_key = f"{chart_type}_{scatter_mode}_{color_mode}_{label_mode}"
+                        dataloaders[combo_key] = (train_loader, val_loader, test_loader)
 
-    val_dataset, test_dataset = random_split(test_dataset, [val_size, test_size])
+                elif chart_type == 'bar':
+                    for bar_mode in bar_modes:
+                        print(f"\nRunning model with chart_type: {chart_type}, bar_mode: {bar_mode}, color_mode: {color_mode}, label_mode: {label_mode}")
+    
+                        # Create datasets with the current combination
+                        train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, 
+                                                                 chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode)
+                        test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, 
+                                                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode)
+    
+                        # Split the test data into validation and test sets
+                        val_size = int(0.5 * len(test_dataset))
+                        test_size = len(test_dataset) - val_size
+                        val_dataset, test_dataset = random_split(test_dataset, [val_size, test_size])
+    
+                        # Create DataLoaders
+                        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+                        val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+                        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    
+                        # Store the DataLoaders in the dictionary
+                        combo_key = f"{chart_type}_{bar_mode}_{color_mode}_{label_mode}"
+                        dataloaders[combo_key] = (train_loader, val_loader, test_loader)
+            
+                else:
+                    print(f"\nRunning model with chart_type: {chart_type}, color_mode: {color_mode}, label_mode: {label_mode}")
+    
+                    # Create datasets with the current combination
+                    train_dataset = TimeSeriesImageDatasetMC(X_train.numpy(), y_train.numpy(), split='train', transform=transform, 
+                                                             chart_type=chart_type, color_mode=color_mode, label_mode=label_mode)
+                    test_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='test', transform=transform, 
+                                                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode)
+    
+                    # Split the test data into validation and test sets
+                    val_size = int(0.5 * len(test_dataset))
+                    test_size = len(test_dataset) - val_size
+                    val_dataset, test_dataset = random_split(test_dataset, [val_size, test_size])
+    
+                    # Create DataLoaders
+                    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+                    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+                    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    
+                    # Store the DataLoaders in the dictionary
+                    combo_key = f"{chart_type}_{color_mode}_{label_mode}"
+                    dataloaders[combo_key] = (train_loader, val_loader, test_loader)
 
-    val_dataset = TimeSeriesImageDatasetMC(X_test.numpy(), y_test.numpy(), split='val', transform=transform, chart_type='scatter')
-
-    # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    return train_loader, val_loader, test_loader
+    return dataloaders
 
 def train_model(model, train_loader, val_loader, num_epochs, patience=10):
     criterion = nn.CrossEntropyLoss()
@@ -86,6 +149,8 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
 
         scheduler.step(val_loss)
 
+        final_val_loss = val_loss
+
         if val_accuracy > best_val_accuracy:
             best_val_accuracy = val_accuracy
             trigger_times = 0
@@ -96,6 +161,7 @@ def train_model(model, train_loader, val_loader, num_epochs, patience=10):
                 break
 
     print(f'Best Validation Accuracy: {best_val_accuracy:.2f}%')
+    print(f'Validation Loss: {final_val_loss:.4f}')  
 
 
 def evaluate_model(model, test_loader):
@@ -135,11 +201,20 @@ def evaluate_model(model, test_loader):
     conf_matrix = confusion_matrix(y_true, y_pred)
     balanced_acc = balanced_accuracy_score(y_true, y_pred)
 
+    specificity = []
+    for i in range(len(conf_matrix)):
+        tn = conf_matrix.sum() - (conf_matrix[i, :].sum() + conf_matrix[:, i].sum() - conf_matrix[i, i])
+        fp = conf_matrix[:, i].sum() - conf_matrix[i, i]
+        specificity.append(tn / (tn + fp))
+
+    avg_specificity = sum(specificity) / len(specificity)
+
     print(f'Precision: {precision:.2f}')
     print(f'Recall: {recall:.2f}')
     print(f'F1 Score: {f1:.2f}')
     print(f'AUC: {auc:.2f}')
     print(f'Balanced Accuracy: {balanced_acc:.2f}')
+    print(f'Average Specificity: {avg_specificity:.2f}')
     print('Confusion Matrix:')
     print(conf_matrix)
 
