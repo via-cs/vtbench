@@ -1,0 +1,76 @@
+# models:
+#   - chart_type: "bar"
+#     bar_mode: "border"
+#     color_mode: "monochrome"
+#     label_mode: "with_label"
+#     combo_key: "bar_border_monochrome_with_label"
+
+#   - chart_type: "area"
+#     color_mode: "monochrome"
+#     label_mode: "without_label"
+#     combo_key: "area_monochrome_without_label"
+
+#   - chart_type: "line"
+#     color_mode: "color"
+#     label_mode: "without_label"
+#     combo_key: "line_color_without_label"
+
+#   - chart_type: "scatter"
+#     scatter_mode: "plain"
+#     color_mode: "color"
+#     label_mode: "without_label"
+#     combo_key: "scatter_plain_color_without_label"
+
+# num_classes: 5
+# learning_rate: 0.0005
+# weight_decay: 0.01
+# num_epochs: 500
+# patience: 10
+
+# apply_smote: true 
+# desired_samples_per_class:  
+#   1: 200
+#   2: 200
+#   3: 250
+#   4: 300
+
+
+### Best settings
+models:
+  - chart_type: "bar"
+    bar_mode: "border"
+    color_mode: "color"
+    label_mode: "without_label"
+    combo_key: "bar_border_color_without_label"
+
+  - chart_type: "area"
+    color_mode: "color"
+    label_mode: "without_label"
+    combo_key: "area_color_without_label"
+
+  - chart_type: "line"
+    color_mode: "color"
+    label_mode: "without_label"
+    combo_key: "line_color_without_label"
+
+  - chart_type: "scatter"
+    scatter_mode: "plain"
+    color_mode: "color"
+    label_mode: "without_label"
+    combo_key: "scatter_plain_color_without_label"
+
+num_classes: 5
+learning_rate: 0.0001  
+weight_decay: 0.0001  
+num_epochs: 500
+patience: 15           
+batch_size: 32        
+apply_smote: false 
+desired_samples_per_class:  
+  1: 200
+  2: 200
+  3: 250
+  4: 300
+
+warmup_epochs: 5
+warmup_lr: 0.00001
