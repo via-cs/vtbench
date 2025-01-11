@@ -1,0 +1,35 @@
+2024-11-14 18:14:41,590 - INFO - Creating DataLoader for combo key: bar_border_color_without_label
+2024-11-14 18:14:41,591 - INFO - Running without SMOTE for bar_border_color_without_label...
+2024-11-14 18:17:19,188 - INFO - Creating DataLoader for combo key: bar_border_color_without_label
+2024-11-14 18:17:19,189 - INFO - Running without SMOTE for bar_border_color_without_label...
+2024-11-14 18:17:19,194 - INFO - 
+Dataset sizes for bar_border_color_without_label:
+2024-11-14 18:17:19,194 - INFO - Training: 613
+2024-11-14 18:17:19,194 - INFO - Validation: 74 (20% of test data)
+2024-11-14 18:17:19,194 - INFO - Test: 296 (80% of test data)
+2024-11-14 18:17:19,194 - INFO - Creating DataLoader for combo key: line_color_without_label
+2024-11-14 18:17:19,194 - INFO - Running without SMOTE for line_color_without_label...
+2024-11-14 18:17:19,204 - INFO - 
+Dataset sizes for line_color_without_label:
+2024-11-14 18:17:19,204 - INFO - Training: 613
+2024-11-14 18:17:19,204 - INFO - Validation: 74 (20% of test data)
+2024-11-14 18:17:19,204 - INFO - Test: 296 (80% of test data)
+2024-11-14 18:17:19,204 - INFO - Creating DataLoader for combo key: area_color_without_label
+2024-11-14 18:17:19,205 - INFO - Running without SMOTE for area_color_without_label...
+2024-11-14 18:17:19,214 - INFO - 
+Dataset sizes for area_color_without_label:
+2024-11-14 18:17:19,214 - INFO - Training: 613
+2024-11-14 18:17:19,214 - INFO - Validation: 74 (20% of test data)
+2024-11-14 18:17:19,214 - INFO - Test: 296 (80% of test data)
+2024-11-14 18:17:19,214 - INFO - Creating DataLoader for combo key: scatter_plain_color_without_label
+2024-11-14 18:17:19,214 - INFO - Running without SMOTE for scatter_plain_color_without_label...
+2024-11-14 18:17:19,224 - INFO - 
+Dataset sizes for scatter_plain_color_without_label:
+2024-11-14 18:17:19,224 - INFO - Training: 613
+2024-11-14 18:17:19,224 - INFO - Validation: 74 (20% of test data)
+2024-11-14 18:17:19,224 - INFO - Test: 296 (80% of test data)
+2024-11-14 18:17:19,224 - INFO - 
+Total samples across all configurations:
+2024-11-14 18:17:19,224 - INFO - Training: 2452
+2024-11-14 18:17:19,224 - INFO - Validation: 296
+2024-11-14 18:17:19,224 - INFO - Test: 1184
