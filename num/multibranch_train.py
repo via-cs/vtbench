@@ -41,111 +41,72 @@ def stratified_split(dataset, labels, val_size):
     )
     return Subset(dataset, val_idx), Subset(dataset, train_idx)
 
+from torch.utils.data.sampler import SubsetRandomSampler
+
 def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
     """
-    Create dataloaders for each chart type configuration with 20% stratified validation split
+    Create dataloaders for each chart type configuration while ensuring that training indices match across all configurations.
     """
     torch.manual_seed(seed)
     np.random.seed(seed)
-    
+
     dataloaders = {}
-    total_samples = {"train": 0, "val": 0, "test": 0}
-    
-    # Shuffle indices
-    shuffled_train_indices = shuffle_indices(len(y_train), seed)
-    shuffled_test_indices = shuffle_indices(len(y_test), seed)
-    
-    # Apply shuffling
-    X_train = X_train[shuffled_train_indices]
-    y_train = y_train[shuffled_train_indices]
-    X_test = X_test[shuffled_test_indices]
-    y_test = y_test[shuffled_test_indices]
+    transform = transforms.Compose([
+        transforms.Resize((64, 64)),
+        transforms.ToTensor(),
+    ])
 
-    # Create dataloaders for each model configuration
+   
+    total_indices = np.arange(len(y_train))
+    np.random.shuffle(total_indices)
+
+    
+    train_sampler = SubsetRandomSampler(total_indices)
+
+    
+    val_size = int(0.2 * len(y_test))
+    test_indices, val_indices = train_test_split(
+        np.arange(len(y_test)),
+        test_size=val_size,
+        stratify=y_test,
+        random_state=seed
+    )
+
     for model_config in config['models']:
-        # Extract configuration parameters
-        chart_type = model_config['chart_type']
-        color_mode = model_config.get('color_mode', 'color')
-        label_mode = model_config.get('label_mode', 'with_label')
-        scatter_mode = model_config.get('scatter_mode', '')
-        bar_mode = model_config.get('bar_mode', '')
+        combo_key = model_config['combo_key']
+        logging.info(f"Creating DataLoader for {combo_key}")
 
-        # Create combo key
-        if chart_type == 'bar':
-            combo_key = f"{chart_type}_{bar_mode}_{color_mode}_{label_mode}"
-        elif chart_type == 'scatter':
-            combo_key = f"{chart_type}_{scatter_mode}_{color_mode}_{label_mode}"
-        else:
-            combo_key = f"{chart_type}_{color_mode}_{label_mode}"
-            
-        logging.info(f"Creating DataLoader for combo key: {combo_key}")
-
-        # Define transforms
-        transform = transforms.Compose([
-            transforms.Resize((64, 64)),
-            transforms.ToTensor(),
-        ])
-
-        # Apply SMOTE if configured
-        if config.get('apply_smote', False):
-            logging.info(f"Applying SMOTE for {combo_key}...")
-            desired_samples = config['desired_samples_per_class']
-            X_resampled, y_resampled = apply_smote(X_train, y_train, desired_samples)
-            logging.info(f"After SMOTE - Class distribution: {np.bincount(y_resampled)}")
-        else:
-            logging.info(f"Running without SMOTE for {combo_key}...")
-            X_resampled, y_resampled = X_train, y_train
-
-        # Create training dataset
         train_dataset = TimeSeriesImageDatasetMC(
             dataset_name=config['dataset_name'],
-            time_series_data=X_resampled,
-            labels=y_resampled,
+            time_series_data=X_train,
+            labels=y_train,
             split='train',
-            # transform=augmentation_transforms,
-            transform = transform,
-            chart_type=chart_type,
-            color_mode=color_mode,
-            label_mode=label_mode,
-            scatter_mode=scatter_mode,
-            bar_mode=bar_mode
+            transform=transform,
+            chart_type=model_config['chart_type'],
+            color_mode=model_config.get('color_mode'),
+            label_mode=model_config.get('label_mode')
         )
 
-        # Create test dataset
         test_dataset = TimeSeriesImageDatasetMC(
             dataset_name=config['dataset_name'],
             time_series_data=X_test,
             labels=y_test,
             split='test',
             transform=transform,
-            chart_type=chart_type,
-            color_mode=color_mode,
-            label_mode=label_mode,
-            scatter_mode=scatter_mode,
-            bar_mode=bar_mode
+            chart_type=model_config['chart_type'],
+            color_mode=model_config.get('color_mode'),
+            label_mode=model_config.get('label_mode')
         )
 
-        # Create validation and test splits (20% for validation)
-        indices = np.arange(len(test_dataset))
-        val_size = int(0.2 * len(indices))  # 20% of test data
         
-        # Use sklearn's train_test_split for stratified splitting
-        test_indices, val_indices = train_test_split(
-            indices,
-            test_size=val_size,
-            stratify=y_test,
-            random_state=seed
-        )
-
-        # Create validation and test datasets using the split indices
         val_dataset = Subset(test_dataset, val_indices)
         final_test_dataset = Subset(test_dataset, test_indices)
 
-        # Create dataloaders
+        
         train_loader = DataLoader(
             train_dataset,
             batch_size=config['batch_size'],
-            shuffle=True,
+            sampler=train_sampler,  
             num_workers=4,
             pin_memory=True
         )
@@ -171,20 +132,6 @@ def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
             'val': val_loader,
             'test': test_loader
         }
-        
-        total_samples["train"] += len(train_dataset)
-        total_samples["val"] += len(val_dataset)
-        total_samples["test"] += len(final_test_dataset)
-
-        logging.info(f"\nDataset sizes for {combo_key}:")
-        logging.info(f"Training: {len(train_dataset)}")
-        logging.info(f"Validation: {len(val_dataset)} (20% of test data)")
-        logging.info(f"Test: {len(final_test_dataset)} (80% of test data)")
-
-    logging.info("\nTotal samples across all configurations:")
-    logging.info(f"Training: {total_samples['train']}")
-    logging.info(f"Validation: {total_samples['val']}")
-    logging.info(f"Test: {total_samples['test']}")
 
     return dataloaders
 
@@ -198,7 +145,7 @@ def print_class_distribution(labels):
 def get_class_weights(train_labels):
     counts = torch.bincount(torch.tensor(train_labels))
     weights = 1.0 / counts.float()
-    weights = weights / weights.sum()  # normalize
+    weights = weights / weights.sum()  
     return weights * 2
 
 
@@ -215,7 +162,7 @@ def train(model, dataloaders, config, device, train_labels):
     print_class_distribution(train_labels)
 
     class_weights = get_class_weights(train_labels).to(device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights)
+    criterion = nn.CrossEntropyLoss(weight = class_weights)
     
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -237,13 +184,13 @@ def train(model, dataloaders, config, device, train_labels):
     best_val_loss = float('inf')
     patience_counter = 0
     
-    # Get reference to individual loaders for each chart type
+   
     chart_configs = {}
     for config_key in dataloaders.keys():
-        chart_type = config_key.split('_')[0]  # Extract chart type from combo key
+        chart_type = config_key.split('_')[0]  
         chart_configs[chart_type] = config_key
 
-    # Get loaders for each chart type
+    
     bar_loaders = dataloaders[chart_configs['bar']]
     line_loaders = dataloaders[chart_configs['line']]
     area_loaders = dataloaders[chart_configs['area']]
@@ -271,13 +218,12 @@ def train(model, dataloaders, config, device, train_labels):
     }
     
     for epoch in range(config['num_epochs']):
-        # Training phase
         model.train()
         train_loss = 0.0
         train_correct = 0
         train_total = 0
         
-        # Create iterators for all loaders
+       
         train_iters = {
             'bar': iter(train_loaders['bar']),
             'line': iter(train_loaders['line']),
@@ -285,35 +231,35 @@ def train(model, dataloaders, config, device, train_labels):
             'scatter': iter(train_loaders['scatter'])
         }
         
-        # Determine number of batches based on shortest loader
+       
         num_batches = min([len(loader) for loader in train_loaders.values()])
         
         for _ in range(num_batches):
             try:
-                # Get batch from each loader
+               
                 bar_batch = next(train_iters['bar'])
                 line_batch = next(train_iters['line'])
                 area_batch = next(train_iters['area'])
                 scatter_batch = next(train_iters['scatter'])
                 
-                # Move data to device
+              
                 bar_imgs = bar_batch[0].to(device)
                 line_imgs = line_batch[0].to(device)
                 area_imgs = area_batch[0].to(device)
                 scatter_imgs = scatter_batch[0].to(device)
-                # Use labels from any batch (they should be the same)
+               
                 labels = bar_batch[1].to(device)
                 
-                # Forward pass
+               
                 optimizer.zero_grad()
                 outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs)
                 loss = criterion(outputs, labels)
                 
-                # Backward pass
+                
                 loss.backward()
                 optimizer.step()
                 
-                # Calculate metrics
+                
                 train_loss += loss.item()
                 _, predicted = outputs.max(1)
                 train_total += labels.size(0)
@@ -322,7 +268,7 @@ def train(model, dataloaders, config, device, train_labels):
             except StopIteration:
                 break
         
-        # Validation phase
+       
         model.eval()
         val_loss = 0.0
         val_correct = 0
