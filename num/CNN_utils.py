@@ -84,11 +84,34 @@ augmentation_transforms = transforms.Compose([
     transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 ])
 
+class NumericalDataset(Dataset):
+    """Dataset class specifically for handling numerical time series data"""
+    def __init__(self, time_series_data, labels):
+        self.data = time_series_data
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        # Handle data
+        if torch.is_tensor(self.data):
+            features = self.data[idx].clone().detach()
+        else:
+            features = torch.tensor(self.data[idx], dtype=torch.float32)
+        
+        # Handle labels
+        if torch.is_tensor(self.labels):
+            label = self.labels[idx].clone().detach()
+        else:
+            label = torch.tensor(self.labels[idx], dtype=torch.long)
+        
+        return features, label
 
 class TimeSeriesImageDatasetMC(Dataset):
-    def __init__(self, dataset_name, time_series_data, labels, split, transform=None, chart_type='area', label_mode='with_label', scatter_mode='join', bar_mode='fill', color_mode='color'):
+    def __init__(self, dataset_name, time_series_data, labels, split, config = None, transform=None, chart_type='area', label_mode='with_label', scatter_mode='join', bar_mode='fill', color_mode='color', augment = False):
         self.dataset_name = dataset_name
-        self.time_series_data = time_series_data
+        self.time_series_data = time_series_data 
         self.labels = labels
         self.split = split
         self.transform = transform
@@ -97,6 +120,8 @@ class TimeSeriesImageDatasetMC(Dataset):
         self.label_mode = label_mode
         self.scatter_mode = scatter_mode
         self.bar_mode = bar_mode
+        self.augment = augment
+        self.config = config 
         
         self.base_dir = f"data/{self.dataset_name}_images"
         self.area_chart_dir_mc = f'{self.base_dir}/area_charts_{color_mode}_{label_mode}/{split}'
@@ -151,43 +176,49 @@ class TimeSeriesImageDatasetMC(Dataset):
 
 
     def __getitem__(self, idx):
-        bar_type_option = self.bar_mode  
-        scatter_type_option = self.scatter_mode 
-        color_option = self.color_mode
-        label_option = self.label_mode  
+        """
+        Get item from dataset.
+        Returns:
+            - For chart types: (img, label) or (img, numerical_features, label)
+            - For numerical type: (numerical_features, label)
+        """
+        # Handle chart types
+        # Get image path based on chart type
         if self.chart_type == 'area':
-            img_name = f'area_chart_{color_option}_{label_option}_{idx}.png'
+            img_name = f'area_chart_{self.color_mode}_{self.label_mode}_{idx}.png'
             img_path = os.path.join(self.area_chart_dir_mc, img_name)
-    
+            
         elif self.chart_type == 'bar':
-            img_name = f'bar_chart_{bar_type_option}_{color_option}_{label_option}_{idx}.png'
+            img_name = f'bar_chart_{self.bar_mode}_{self.color_mode}_{self.label_mode}_{idx}.png'
             img_path = os.path.join(self.bar_chart_dir_mc, img_name)
-    
+            
         elif self.chart_type == 'line':
-            img_name = f'line_chart_{color_option}_{label_option}_{idx}.png'
+            img_name = f'line_chart_{self.color_mode}_{self.label_mode}_{idx}.png'
             img_path = os.path.join(self.line_chart_dir_mc, img_name)
-    
+            
         elif self.chart_type == 'scatter':
-            img_name = f'scatter_chart_{scatter_type_option}_{color_option}_{label_option}_{idx}.png'
+            img_name = f'scatter_chart_{self.scatter_mode}_{self.color_mode}_{self.label_mode}_{idx}.png'
             img_path = os.path.join(self.scatter_chart_dir_mc, img_name)
-    
+            
         else:
             raise ValueError(f"Unsupported chart type: {self.chart_type}")
-        
+            
+        # Check if image exists
         if not os.path.exists(img_path):
             raise FileNotFoundError(f"File not found: {img_path}")
-
     
+        # Load and process image
         img = Image.open(img_path).convert('RGB')
-        label = self.labels[idx]
-
-        # img = augmentation_transforms(img)
-        
         if self.transform:
             img = self.transform(img)
-
+    
+        if torch.is_tensor(self.labels):
+            label = self.labels[idx].clone().detach()
+        else:
+            label = torch.tensor(self.labels[idx], dtype=torch.long)
+    
         return img, label
-
+            
 def display_chart_mc(image_path):
     img = Image.open(image_path)
     img.show()
@@ -195,6 +226,8 @@ def display_chart_mc(image_path):
 def accuracy_fn_mc(y_true, y_pred):
     correct = torch.eq(y_true, y_pred).sum().item()
     return (correct / len(y_pred)) * 100
+
+
 
 
 

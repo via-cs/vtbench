@@ -9,7 +9,7 @@ import torch.nn as nn
 
 from multimodalCNN import MultimodalDeep2DCNN
 from multimodal_train import create_dataloaders, train_model, evaluate_model
-from mm_data_utils import read_ucr, normalize_data, to_torch_tensors
+from mm_data_utils import read_ucr, read_ecg5000, normalize_data, to_torch_tensors
 
 
 
@@ -22,6 +22,7 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+    
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -46,20 +47,28 @@ def main():
     config = load_config()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Update config with dataset paths from arguments
+   
     config['train_file'] = args.train_path
     config['test_file'] = args.test_path
+
+    dataset_name = Path(args.train_path).parent.name
     
-    # Load and preprocess data
-    x_train, y_train = read_ucr(config['train_file'])
-    x_test, y_test = read_ucr(config['test_file'])
+   
+    if "ECG5000" in dataset_name:
+        x_train, y_train = read_ecg5000(config['train_file'])
+        x_test, y_test = read_ecg5000(config['test_file'])
+    else:
+        x_train, y_train = read_ucr(config['train_file'])
+        x_test, y_test = read_ucr(config['test_file'])
+
     x_train, x_test = normalize_data(x_train, x_test)
     X_train, y_train, X_test, y_test = to_torch_tensors(x_train, y_train, x_test, y_test)
+
 
     numerical_train = X_train
     numerical_test = X_test
     
-    # Create dataloaders
+   
     dataloaders = create_dataloaders(
         X_train=X_train,
         numerical_train=numerical_train,

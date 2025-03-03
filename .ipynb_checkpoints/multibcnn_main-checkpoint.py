@@ -9,9 +9,7 @@ import torch.nn as nn
 
 from num.models.multibranchCNN import MultiBranchCNN
 from num.multibranch_train import create_dataloaders, train, test
-from num.data_utils import read_ucr, normalize_data, to_torch_tensors
-
-
+from num.data_utils import read_ucr, read_ecg5000, normalize_data, to_torch_tensors
 
 def setup_logging():
     logging.basicConfig(
@@ -22,6 +20,7 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -29,7 +28,6 @@ def set_seed(seed):
     torch.backends.cudnn.benchmark = False
     np.random.seed(seed)
     random.seed(seed)
-
 
 def load_config(config_path='config.yaml'):
     with open(config_path, 'r') as f:
@@ -44,41 +42,51 @@ def main():
 
     setup_logging()
     config = load_config()
+    
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # Update config with dataset paths from arguments
     config['train_file'] = args.train_path
     config['test_file'] = args.test_path
+    dataset_name = Path(args.train_path).parent.name.lower()
     
-    # Load and preprocess data
-    x_train, y_train = read_ucr(config['train_file'])
-    x_test, y_test = read_ucr(config['test_file'])
+    if "ecg5000" in dataset_name:
+        x_train, y_train = read_ecg5000(config['train_file'])
+        x_test, y_test = read_ecg5000(config['test_file'])
+    else:
+        x_train, y_train = read_ucr(config['train_file'])
+        x_test, y_test = read_ucr(config['test_file'])
+    
     x_train, x_test = normalize_data(x_train, x_test)
     X_train, y_train, X_test, y_test = to_torch_tensors(x_train, y_train, x_test, y_test)
     
-    # Create dataloaders
-    dataloaders = create_dataloaders(X_train, y_train, X_test, y_test, config)
+    dataloaders = create_dataloaders(
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        y_test=y_test,
+        config=config,
+    )
     
-    # Create model
     model = MultiBranchCNN(
-        input_channels=3,
-        num_classes=config['num_classes']
+        input_channels=3, 
+        num_classes=config["num_classes"],
+        num_features=X_train.shape[1] if config['numerical_processing']['method'] != "none" else None,
+        config=config
     ).to(device)
-    
-    # Train model (includes validation)
+        
     trained_model = train(
         model=model,
         dataloaders=dataloaders,
         config=config,
         device=device,
-        train_labels = y_train
+        train_labels=y_train
     )
 
-    # Test model
     test_metrics = test(
         model=trained_model,
         dataloaders=dataloaders,
-        device=device
+        device=device,
+        config=config
     )
 
 if __name__ == '__main__':

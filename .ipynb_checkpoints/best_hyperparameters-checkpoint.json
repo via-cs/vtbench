@@ -1,0 +1,44 @@
+{
+    "ECG5000": {
+        "dataset": "ECG5000",
+        "value": 5.403235496487469e-05,
+        "params": {
+            "learning_rate": 0.0005116102962098611,
+            "batch_size": 64,
+            "num_epochs": 132,
+            "d_model": 256,
+            "nhead": 8,
+            "num_layers": 5,
+            "dim_feedforward": 1024,
+            "dropout": 0.20544339241768847
+        }
+    },
+    "Yoga": {
+        "dataset": "Yoga",
+        "value": 0.4647887647151947,
+        "params": {
+            "learning_rate": 1.0217891620609612e-05,
+            "batch_size": 64,
+            "num_epochs": 166,
+            "d_model": 512,
+            "nhead": 2,
+            "num_layers": 2,
+            "dim_feedforward": 512,
+            "dropout": 0.16920686329203088
+        }
+    },
+    "Strawberry": {
+        "dataset": "Strawberry",
+        "value": 0.06618170149442626,
+        "params": {
+            "learning_rate": 0.00013403696985839604,
+            "batch_size": 32,
+            "num_epochs": 179,
+            "d_model": 64,
+            "nhead": 2,
+            "num_layers": 4,
+            "dim_feedforward": 512,
+            "dropout": 0.12036576964322687
+        }
+    }
+}

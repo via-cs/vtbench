@@ -5,7 +5,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from sklearn.model_selection import train_test_split
-from num.CNN_utils import TimeSeriesImageDatasetMC, augmentation_transforms
+from num.CNN_utils import TimeSeriesImageDatasetMC, NumericalDataset, augmentation_transforms
 import logging
 import torch
 import torch.nn as nn
@@ -59,11 +59,8 @@ def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
    
     total_indices = np.arange(len(y_train))
     np.random.shuffle(total_indices)
-
-    
     train_sampler = SubsetRandomSampler(total_indices)
 
-    
     val_size = int(0.2 * len(y_test))
     test_indices, val_indices = train_test_split(
         np.arange(len(y_test)),
@@ -72,6 +69,38 @@ def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
         random_state=seed
     )
 
+    if config['numerical_processing']['method'] != "none":
+        numerical_train_dataset = NumericalDataset(X_train, y_train)
+        numerical_test_dataset = NumericalDataset(X_test, y_test)
+        
+        numerical_val_dataset = Subset(numerical_test_dataset, val_indices)
+        numerical_final_test_dataset = Subset(numerical_test_dataset, test_indices)
+        
+        dataloaders['numerical'] = {
+            'train': DataLoader(
+                numerical_train_dataset,
+                batch_size=config['batch_size'],
+                sampler=train_sampler,
+                num_workers=4,
+                pin_memory=True
+            ),
+            'val': DataLoader(
+                numerical_val_dataset,
+                batch_size=config['batch_size'],
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True
+            ),
+            'test': DataLoader(
+                numerical_final_test_dataset,
+                batch_size=config['batch_size'],
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True
+            )
+        }
+
+    # chart type loaders
     for model_config in config['models']:
         combo_key = model_config['combo_key']
         logging.info(f"Creating DataLoader for {combo_key}")
@@ -81,6 +110,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
             time_series_data=X_train,
             labels=y_train,
             split='train',
+            config = config,
             transform=transform,
             chart_type=model_config['chart_type'],
             color_mode=model_config.get('color_mode'),
@@ -92,47 +122,40 @@ def create_dataloaders(X_train, y_train, X_test, y_test, config, seed=42):
             time_series_data=X_test,
             labels=y_test,
             split='test',
+            config=config,
             transform=transform,
             chart_type=model_config['chart_type'],
             color_mode=model_config.get('color_mode'),
             label_mode=model_config.get('label_mode')
         )
-
         
         val_dataset = Subset(test_dataset, val_indices)
         final_test_dataset = Subset(test_dataset, test_indices)
 
-        
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=config['batch_size'],
-            sampler=train_sampler,  
-            num_workers=4,
-            pin_memory=True
-        )
-
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=config['batch_size'],
-            shuffle=False,
-            num_workers=4,
-            pin_memory=True
-        )
-
-        test_loader = DataLoader(
-            final_test_dataset,
-            batch_size=config['batch_size'],
-            shuffle=False,
-            num_workers=4,
-            pin_memory=True
-        )
-
         dataloaders[combo_key] = {
-            'train': train_loader,
-            'val': val_loader,
-            'test': test_loader
+            'train': DataLoader(
+                train_dataset,
+                batch_size=config['batch_size'],
+                sampler=train_sampler,
+                num_workers=4,
+                pin_memory=True
+            ),
+            'val': DataLoader(
+                val_dataset,
+                batch_size=config['batch_size'],
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True
+            ),
+            'test': DataLoader(
+                final_test_dataset,
+                batch_size=config['batch_size'],
+                shuffle=False,
+                num_workers=4,
+                pin_memory=True
+            )
         }
-
+    
     return dataloaders
 
 def print_class_distribution(labels):
@@ -143,7 +166,8 @@ def print_class_distribution(labels):
         print(f"Class {class_idx}: {count} samples ({count/len(labels)*100:.2f}%)")
 
 def get_class_weights(train_labels):
-    counts = torch.bincount(torch.tensor(train_labels))
+    train_labels = torch.tensor(train_labels, dtype=torch.long)
+    counts = torch.bincount(train_labels)
     weights = 1.0 / counts.float()
     weights = weights / weights.sum()  
     return weights * 2
@@ -152,11 +176,7 @@ def get_class_weights(train_labels):
 def train(model, dataloaders, config, device, train_labels):
     """
     Training function that handles multiple chart configurations
-    Args:
-        model: MultiBranchCNN model
-        dataloaders: Dictionary of dataloaders for each chart configuration
-        config: Configuration dictionary
-        device: torch device
+    
     """
     print("\nInitial class distribution in training data:")
     print_class_distribution(train_labels)
@@ -185,53 +205,27 @@ def train(model, dataloaders, config, device, train_labels):
     patience_counter = 0
     
    
-    chart_configs = {}
-    for config_key in dataloaders.keys():
-        chart_type = config_key.split('_')[0]  
-        chart_configs[chart_type] = config_key
+    chart_configs = {
+        key.split('_')[0]: key 
+        for key in dataloaders.keys() 
+        if key != 'numerical'
+    }
 
-    
-    bar_loaders = dataloaders[chart_configs['bar']]
-    line_loaders = dataloaders[chart_configs['line']]
-    area_loaders = dataloaders[chart_configs['area']]
-    scatter_loaders = dataloaders[chart_configs['scatter']]
-    
-    train_loaders = {
-        'bar': bar_loaders['train'],
-        'line': line_loaders['train'],
-        'area': area_loaders['train'],
-        'scatter': scatter_loaders['train']
-    }
-    
-    val_loaders = {
-        'bar': bar_loaders['val'],
-        'line': line_loaders['val'],
-        'area': area_loaders['val'],
-        'scatter': scatter_loaders['val']
-    }
-    
-    test_loaders = {
-        'bar': bar_loaders['test'],
-        'line': line_loaders['test'],
-        'area': area_loaders['test'],
-        'scatter': scatter_loaders['test']
-    }
-    
+    train_loaders = {chart: dataloaders[chart_configs[chart]]['train'] for chart in chart_configs.keys()}
+    val_loaders = {chart: dataloaders[chart_configs[chart]]['val'] for chart in chart_configs.keys()}
+    test_loaders = {chart: dataloaders[chart_configs[chart]]['test'] for chart in chart_configs.keys()}
+
     for epoch in range(config['num_epochs']):
         model.train()
         train_loss = 0.0
         train_correct = 0
         train_total = 0
+         
+        train_iters = {chart: iter(train_loaders[chart]) for chart in chart_configs.keys()}
         
-       
-        train_iters = {
-            'bar': iter(train_loaders['bar']),
-            'line': iter(train_loaders['line']),
-            'area': iter(train_loaders['area']),
-            'scatter': iter(train_loaders['scatter'])
-        }
+        if config['numerical_processing']['method'] != "none":
+            numerical_train_iter = iter(dataloaders['numerical']['train'])
         
-       
         num_batches = min([len(loader) for loader in train_loaders.values()])
         
         for _ in range(num_batches):
@@ -249,10 +243,21 @@ def train(model, dataloaders, config, device, train_labels):
                 scatter_imgs = scatter_batch[0].to(device)
                
                 labels = bar_batch[1].to(device)
-                
-               
+
+                if config['numerical_processing']['method'] != "none":
+                    try:
+                        numerical_batch = next(numerical_train_iter)
+                        numerical_features = numerical_batch[0].to(device)
+                    except StopIteration:
+                        numerical_train_iter = iter(dataloaders['numerical']['train'])
+                        numerical_batch = next(numerical_train_iter)
+                        numerical_features = numerical_batch[0].to(device)
+                else:
+                    numerical_features = None
+
+                               
                 optimizer.zero_grad()
-                outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs)
+                outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs, numerical_features)
                 loss = criterion(outputs, labels)
                 
                 
@@ -274,13 +279,11 @@ def train(model, dataloaders, config, device, train_labels):
         val_correct = 0
         val_total = 0
         
-        val_iters = {
-            'bar': iter(val_loaders['bar']),
-            'line': iter(val_loaders['line']),
-            'area': iter(val_loaders['area']),
-            'scatter': iter(val_loaders['scatter'])
-        }
-        
+        val_iters = {chart: iter(val_loaders[chart]) for chart in chart_configs.keys()}
+
+        if config['numerical_processing']['method'] != "none":
+            numerical_val_iter = iter(dataloaders['numerical']['val'])
+
         num_val_batches = min([len(loader) for loader in val_loaders.values()])
         
         with torch.no_grad():
@@ -292,14 +295,24 @@ def train(model, dataloaders, config, device, train_labels):
                     area_batch = next(val_iters['area'])
                     scatter_batch = next(val_iters['scatter'])
                     
-                    # Move data to device
                     bar_imgs = bar_batch[0].to(device)
                     line_imgs = line_batch[0].to(device)
                     area_imgs = area_batch[0].to(device)
                     scatter_imgs = scatter_batch[0].to(device)
                     labels = bar_batch[1].to(device)
+
+                    if config['numerical_processing']['method'] != "none":
+                        try:
+                            numerical_batch = next(numerical_val_iter)
+                            numerical_features = numerical_batch[0].to(device)
+                        except StopIteration:
+                            numerical_val_iter = iter(dataloaders['numerical']['val'])
+                            numerical_batch = next(numerical_val_iter)
+                            numerical_features = numerical_batch[0].to(device)
+                    else:
+                        numerical_features = None
                     
-                    outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs)
+                    outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs, numerical_features)
                     loss = criterion(outputs, labels)
                     
                     val_loss += loss.item()
@@ -338,7 +351,7 @@ def train(model, dataloaders, config, device, train_labels):
     return model
     
 
-def test(model, dataloaders, device):
+def test(model, dataloaders, device, config):
     """
     Test function with specific metric outputs
     """
@@ -352,24 +365,28 @@ def test(model, dataloaders, device):
     
     criterion = nn.CrossEntropyLoss()
     
-    # Get test loaders for each chart type
-    chart_configs = {}
-    for config_key in dataloaders.keys():
-        chart_type = config_key.split('_')[0]
-        chart_configs[chart_type] = config_key
-
-    test_loaders = {
-        'bar': dataloaders[chart_configs['bar']]['test'],
-        'line': dataloaders[chart_configs['line']]['test'],
-        'area': dataloaders[chart_configs['area']]['test'],
-        'scatter': dataloaders[chart_configs['scatter']]['test']
+    # Get test loaders for each chart type, excluding numerical data loader if present
+    chart_configs = {
+        key.split('_')[0]: key 
+        for key in dataloaders.keys() 
+        if key != 'numerical'
     }
+
+    test_loaders = {chart: dataloaders[chart_configs[chart]]['test'] for chart in chart_configs.keys()}
+    test_iters = {chart: iter(test_loaders[chart]) for chart in chart_configs.keys()}
+
+    numerical_method = config['numerical_processing']['method']
+    if numerical_method != "none":
+        try:
+            numerical_test_iter = iter(dataloaders['numerical']['test'])
+        except KeyError:
+            raise ValueError("Numerical processing is enabled but numerical test loader not found")
     
-    test_iters = {k: iter(v) for k, v in test_loaders.items()}
     num_test_batches = min([len(loader) for loader in test_loaders.values()])
+
     
     with torch.no_grad():
-        for _ in range(num_test_batches):
+        for batch_idx in range(num_test_batches):
             try:
                 # Get batch from each loader
                 bar_batch = next(test_iters['bar'])
@@ -377,15 +394,27 @@ def test(model, dataloaders, device):
                 area_batch = next(test_iters['area'])
                 scatter_batch = next(test_iters['scatter'])
                 
-                # Move data to device
+                # Move data to devices
                 bar_imgs = bar_batch[0].to(device)
                 line_imgs = line_batch[0].to(device)
                 area_imgs = area_batch[0].to(device)
                 scatter_imgs = scatter_batch[0].to(device)
-                labels = bar_batch[1].to(device)
+                labels = bar_batch[1].to(device)  
+
+                if numerical_method != "none":
+                    try:
+                        numerical_batch = next(numerical_test_iter)
+                        numerical_features = numerical_batch[0].to(device)
+                    except StopIteration:
+                        numerical_test_iter = iter(dataloaders['numerical']['test'])
+                        numerical_batch = next(numerical_test_iter)
+                        numerical_features = numerical_batch[0].to(device)
+                else:
+                    numerical_features = None
+
                 
                 # Forward pass
-                outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs)
+                outputs = model(bar_imgs, line_imgs, area_imgs, scatter_imgs, numerical_features)
                 loss = criterion(outputs, labels)
                 probs = torch.softmax(outputs, dim=1)
                 

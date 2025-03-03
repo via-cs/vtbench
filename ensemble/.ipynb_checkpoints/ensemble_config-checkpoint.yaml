@@ -1,0 +1,62 @@
+datasets:
+  - name: "ECG5000"
+    combos:
+      - combo_key: "scatter_plain_color_with_label"
+        model_type: "Simple2DCNN"
+      - combo_key: "bar_border_monochrome_with_label"
+        model_type: "Simple2DCNN"
+      - combo_key: "area__with_label"
+        model_type: "Simple2DCNN"
+      - combo_key: "line__without_label"
+        model_type: "Simple2DCNN"
+
+
+# datasets:
+#   - name: "FordB"
+#     combos:
+#       - combo_key: "scatter_plain_monochrome_with_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "bar_border_monochrome_without_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "area_color_with_label"
+#         model_type: "Simple2DCNN"
+#       - combo_key: "line_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+
+# datasets:
+#   - name: "SharePriceIncrease"
+#     combos:
+#       - combo_key: "scatter_plain_monochrome_with_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "bar_border_monochrome_without_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "area_color_with_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "line_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+
+# datasets:
+#   - name: "Yoga"
+#     combos:
+#       - combo_key: "scatter_plain_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+#       - combo_key: "bar_border_monochrome_without_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "area_color_with_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "line_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+
+
+
+# datasets:
+#   - name: "Strawberry"
+#     combos:
+#       - combo_key: "scatter_plain_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+#       - combo_key: "bar_border_monochrome_without_label"
+#         model_type: "Simple2DCNN"
+#       - combo_key: "area_color_with_label"
+#         model_type: "Deep2DCNN"
+#       - combo_key: "line_color_without_label"
+#         model_type: "Deep2DCNN"

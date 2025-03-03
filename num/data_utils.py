@@ -1,6 +1,7 @@
 import numpy as np
 from imblearn.over_sampling import SMOTE
 import torch
+from collections import Counter
 
 def read_ucr(filename):
     data = []
@@ -43,6 +44,44 @@ def read_ucr(filename):
     return np.array(data), np.array(labels)
 
 
+def read_ecg5000(filename):
+    data = []
+    labels = []
+    
+    def normalize(label):
+        if label == 1:
+            return 0  # Normal
+        elif label in {2, 3, 4}:
+            return 1  # Abnormal
+        else:
+            return None  
+
+   
+    with open(filename, 'r') as file:
+        for line in file:
+           
+            parts = line.strip().split(':')
+            features = list(map(float, parts[0].split(',')))
+            label = int(parts[1])
+           
+            normalized_label = normalize(label)
+            if normalized_label is not None:  
+                data.append(features)
+                labels.append(normalized_label)
+
+    data = np.array(data)
+    labels = np.array(labels)
+
+    if len(labels) > 0:
+        print(f"ECG5000 Data loaded. Total samples: {len(labels)}, Class distribution: {np.bincount(labels)}")
+    else:
+        print(f"Warning: No valid samples found in {filename}. Check the file format or filtering criteria.")
+
+    return data, labels
+
+
+
+
 def normalize_data(x_train, x_test):
     x_train_mean = x_train.mean()
     x_train_std = x_train.std()
@@ -57,10 +96,7 @@ def to_torch_tensors(x_train, y_train, x_test, y_test):
     y_test = torch.tensor(y_test, dtype=torch.long)
     return X_train, y_train, X_test, y_test
 
-def apply_smote(x_train, y_train, strategy):
-    smote = SMOTE(sampling_strategy=strategy, k_neighbors=1)
-    x_train_resampled, y_train_resampled = smote.fit_resample(x_train, y_train)
-    return x_train_resampled, y_train_resampled
+
 
 
 

@@ -4,7 +4,7 @@ import argparse
 import pandas as pd
 import torch
 import traceback
-from num.data_utils import read_ucr, normalize_data
+from num.data_utils import read_ucr, read_ecg5000, normalize_data
 from num.models.SimpleCNN import Simple2DCNN
 from num.models.DeepCNN import Deep2DCNN
 from num.CNN_train import create_dataloaders, train_model, evaluate_model
@@ -15,21 +15,23 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Run CNN on various datasets with different configurations.")
     parser.add_argument('--train_file', type=str, required=True, help='Path to the training dataset')
     parser.add_argument('--test_file', type=str, required=True, help='Path to the testing dataset')
+    parser.add_argument('--augment', action = "store_true", help = "Enable image augmentation")
     return parser.parse_args()
 
 def get_dataset_name_from_path(dataset_path):
     return os.path.basename(os.path.dirname(dataset_path))
 
-def get_unique_filename(base_name='base_model.xlsx'):
+def get_unique_filename(dataset_name):
     """Generate a unique filename only once."""
+    base_name = f"{dataset_name}_results.xlsx"
     if not os.path.exists(base_name):
         return base_name  
 
     counter = 1
-    while os.path.exists(f"base_model_{counter}.xlsx"):
+    while os.path.exists(f"{dataset_name}_results_{counter}.xlsx"):
         counter += 1
 
-    return f"base_model_{counter}.xlsx"
+    return f"{dataset_name}_results_{counter}.xlsx"
 
 def write_results_to_excel(file_path, results, version):
     """Write results to Excel."""
@@ -62,13 +64,21 @@ def main():
     args = parse_arguments()
     print(f"Train File: {args.train_file}, Test File: {args.test_file}")
 
-    excel_file_path = get_unique_filename('base_model.xlsx')
+    dataset_name = get_dataset_name_from_path(args.train_file)  
+
+    excel_file_path = get_unique_filename(dataset_name) 
     print(f"Results will be saved to: {excel_file_path}")
 
     try:
-        x_train, y_train = read_ucr(args.train_file)
-        x_test, y_test = read_ucr(args.test_file)
-        print("Data loaded successfully.")
+
+        if "ECG5000" in dataset_name:
+            print("Detected ECG5000 dataset. Using `read_ecg5000()`...")
+            x_train, y_train = read_ecg5000(args.train_file)
+            x_test, y_test = read_ecg5000(args.test_file)
+        else:
+            print("Using `read_ucr()` for dataset:", dataset_name)
+            x_train, y_train = read_ucr(args.train_file)
+            x_test, y_test = read_ucr(args.test_file)
     except Exception as e:
         print(f"Error loading data: {e}")
         traceback.print_exc()
@@ -87,8 +97,17 @@ def main():
         'Deep2DCNN': Deep2DCNN
     }
 
-    dataloaders = create_dataloaders(x_train, y_train, x_test, y_test, train_file=args.train_file)
+    dataset_name = get_dataset_name_from_path(args.train_file)
+    dataloaders = create_dataloaders(x_train, y_train, x_test, y_test, train_file=args.train_file, dataset_name = dataset_name, augment = args.augment)
     print("Dataloaders created successfully.")
+
+    # sample_dataset = next(iter(dataloaders.values()))[0].dataset  
+
+    # # Log image statistics to compare original vs. augmented
+    # if args.augment:
+    #     print("Logging image statistics for original vs. augmented images...")
+    #     sample_dataset.log_image_statistics(num_samples=10)
+
 
     for model_name, model_class in model_configurations.items():
         print(f"Using model: {model_name}")

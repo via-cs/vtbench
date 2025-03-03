@@ -45,13 +45,22 @@ def stratified_split(test_dataset, y_test, val_size=0.2):
     return val_dataset, test_dataset
 
 
-def create_dataloaders(X_train, y_train, X_test, y_test, train_file, batch_size=32):
+def create_dataloaders(X_train, y_train, X_test, y_test, train_file, dataset_name, batch_size=32, verbose= True, augment = False):
     dataset_name = get_dataset_name_from_path(train_file)
     
-    transform = transforms.Compose([
+    base_transforms = [
         transforms.Resize((64, 64)),
         transforms.ToTensor(),
-    ])
+    ]
+
+    augmentation_transforms = [
+            transforms.RandomRotation(degrees=5),
+            transforms.RandomResizedCrop(size=(64, 64), scale=(0.9, 1.0)),
+            transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1),
+    ]
+
+    transform = transforms.Compose(augmentation_transforms + base_transforms) if augment else transforms.Compose(base_transforms)
+    print(f"{'Data Augmentation Enabled' if augment else 'No Augmentation'}")
     
     chart_types = ['area', 'line', 'bar', 'scatter']
     color_modes = ['color', 'monochrome']
@@ -66,18 +75,18 @@ def create_dataloaders(X_train, y_train, X_test, y_test, train_file, batch_size=
             for label_mode in label_modes:
                 if chart_type == 'scatter':
                     for scatter_mode in scatter_modes:
-                        # Log current configuration
-                        print(f"Creating dataloaders for: chart_type={chart_type}, scatter_mode={scatter_mode}, color_mode={color_mode}, label_mode={label_mode}")
+                        if verbose: 
+                            print(f"Creating dataloaders for: chart_type={chart_type}, scatter_mode={scatter_mode}, color_mode={color_mode}, label_mode={label_mode}")
                         
                         try:
                             # Create dataset and loaders for scatter mode
                             train_dataset = TimeSeriesImageDatasetMC(
-                                dataset_name, X_train, y_train, split='train', transform=transform,
-                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode
+                                dataset_name, X_train, y_train, split='train', transform = transform,
+                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode, augment=augment
                             )
                             test_dataset = TimeSeriesImageDatasetMC(
                                 dataset_name, X_test, y_test, split='test', transform=transform,
-                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode
+                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, scatter_mode=scatter_mode, augment=False
                             )
 
                             val_dataset, test_dataset = stratified_split(test_dataset, y_test, val_size=50)
@@ -94,17 +103,17 @@ def create_dataloaders(X_train, y_train, X_test, y_test, train_file, batch_size=
 
                 elif chart_type == 'bar':
                     for bar_mode in bar_modes:
-                        # Log current configuration
-                        print(f"Creating dataloaders for: chart_type={chart_type}, bar_mode={bar_mode}, color_mode={color_mode}, label_mode={label_mode}")
+                        if verbose:
+                            print(f"Creating dataloaders for: chart_type={chart_type}, bar_mode={bar_mode}, color_mode={color_mode}, label_mode={label_mode}")
                         
                         try:
                             train_dataset = TimeSeriesImageDatasetMC(
                                 dataset_name, X_train, y_train, split='train', transform=transform,
-                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode
+                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode, augment=augment
                             )
                             test_dataset = TimeSeriesImageDatasetMC(
                                 dataset_name, X_test, y_test, split='test', transform=transform,
-                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode
+                                chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, bar_mode=bar_mode, augment=False
                             )
 
                             val_dataset, test_dataset = stratified_split(test_dataset, y_test, val_size=50)
@@ -120,16 +129,17 @@ def create_dataloaders(X_train, y_train, X_test, y_test, train_file, batch_size=
                             print(f"Error: {e}")
 
                 else:
-                    print(f"Creating dataloaders for: chart_type={chart_type}, color_mode={color_mode}, label_mode={label_mode}")
+                    if verbose: 
+                        print(f"Creating dataloaders for: chart_type={chart_type}, color_mode={color_mode}, label_mode={label_mode}")
                     
                     try:
                         train_dataset = TimeSeriesImageDatasetMC(
                             dataset_name, X_train, y_train, split='train', transform=transform,
-                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode
+                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, augment=augment
                         )
                         test_dataset = TimeSeriesImageDatasetMC(
                             dataset_name, X_test, y_test, split='test', transform=transform,
-                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode
+                            chart_type=chart_type, color_mode=color_mode, label_mode=label_mode, augment=False
                         )
 
                         val_dataset, test_dataset = stratified_split(test_dataset, y_test, val_size=50)
