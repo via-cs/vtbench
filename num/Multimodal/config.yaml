@@ -16,7 +16,7 @@ multimodal:
   bar_mode: "border"
 
 numerical_processing:
-  method: "transformer" # Choose from: fc, transformer
+  method: "fc" # Choose from: fc, transformer
   transformer:
     num_layers: 2
     num_heads: 4
