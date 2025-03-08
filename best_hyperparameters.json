@@ -54,5 +54,75 @@
             "dim_feedforward": 512,
             "dropout": 0.43572048885045206
         }
+    },
+    "ItalyPowerDemand": {
+        "dataset": "ItalyPowerDemand",
+        "value": 1.4794038534164429,
+        "params": {
+            "learning_rate": 0.0003210886356366269,
+            "batch_size": 16,
+            "num_epochs": 95,
+            "d_model": 512,
+            "nhead": 2,
+            "num_layers": 6,
+            "dim_feedforward": 512,
+            "dropout": 0.48479516423699237
+        }
+    },
+    "Lightning2": {
+        "dataset": "Lightning2",
+        "value": 0.6598719358444214,
+        "params": {
+            "learning_rate": 1.0076558260750764e-05,
+            "batch_size": 64,
+            "num_epochs": 64,
+            "d_model": 128,
+            "nhead": 2,
+            "num_layers": 2,
+            "dim_feedforward": 2048,
+            "dropout": 0.24551024583284975
+        }
+    },
+    "GunPoint": {
+        "dataset": "GunPoint",
+        "value": 0.8431061506271362,
+        "params": {
+            "learning_rate": 1.2613552741144541e-05,
+            "batch_size": 64,
+            "num_epochs": 181,
+            "d_model": 64,
+            "nhead": 4,
+            "num_layers": 2,
+            "dim_feedforward": 512,
+            "dropout": 0.19827646166104682
+        }
+    },
+    "Wafer": {
+        "dataset": "Wafer",
+        "value": 0.3165260270237923,
+        "params": {
+            "learning_rate": 0.006788589300136166,
+            "batch_size": 64,
+            "num_epochs": 58,
+            "d_model": 256,
+            "nhead": 4,
+            "num_layers": 2,
+            "dim_feedforward": 512,
+            "dropout": 0.20131737829927027
+        }
+    },
+    "PhalangesOutlinesCorrect": {
+        "dataset": "PhalangesOutlinesCorrect",
+        "value": 0.6476165453592936,
+        "params": {
+            "learning_rate": 0.00029238605163709987,
+            "batch_size": 64,
+            "num_epochs": 71,
+            "d_model": 512,
+            "nhead": 4,
+            "num_layers": 6,
+            "dim_feedforward": 2048,
+            "dropout": 0.2702891947008675
+        }
     }
 }

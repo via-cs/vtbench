@@ -4,17 +4,17 @@ import torch.nn as nn
 class TransformerClassifier(nn.Module):
     def __init__(self, input_dim, num_classes):
         super(TransformerClassifier, self).__init__()
-        self.embedding = nn.Linear(input_dim, 512)
+        self.embedding = nn.Linear(input_dim, 128)
         self.transformer = nn.Transformer(
-            d_model=512,
-            nhead=16,
-            num_encoder_layers=4,
+            d_model=128,
+            nhead=2,
+            num_encoder_layers=2,
             num_decoder_layers=0,
-            dim_feedforward=512,
-            dropout=0.46467711263882794,
+            dim_feedforward=2048,
+            dropout=0.24551024583284975,
             batch_first=True
         )
-        self.fc = nn.Linear(512, num_classes)
+        self.fc = nn.Linear(128, num_classes)
 
     def forward(self, x):
         if x.dim() == 2:

@@ -7,11 +7,11 @@ class TransformerClassifier(nn.Module):
         self.embedding = nn.Linear(input_dim, 512)
         self.transformer = nn.Transformer(
             d_model=512,
-            nhead=16,
-            num_encoder_layers=4,
+            nhead=4,
+            num_encoder_layers=6,
             num_decoder_layers=0,
-            dim_feedforward=512,
-            dropout=0.46467711263882794,
+            dim_feedforward=2048,
+            dropout=0.2702891947008675,
             batch_first=True
         )
         self.fc = nn.Linear(512, num_classes)

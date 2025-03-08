@@ -105,7 +105,10 @@ def create_dataloaders(X_train, numerical_train, y_train, X_test, numerical_test
             bar_mode=bar_mode if chart_type == "bar" else None
         )
 
-        val_dataset, test_dataset = stratified_split(test_dataset, y_test, val_size=50)
+        val_size = int(0.2 * len(test_dataset)) 
+        val_size = max(1, val_size) 
+        
+        val_dataset, test_dataset = stratified_split(test_dataset, y_test, val_size=val_size)
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

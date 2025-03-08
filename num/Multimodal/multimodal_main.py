@@ -67,7 +67,6 @@ def main():
 
     numerical_train = X_train
     numerical_test = X_test
-    
    
     dataloaders = create_dataloaders(
         X_train=X_train,
@@ -83,6 +82,17 @@ def main():
     first_key = next(iter(dataloaders.keys()))
     print(f"Using dataloaders for key: {first_key}")
     train_loader, val_loader, test_loader = dataloaders[first_key]
+
+    print(f"Train size: {len(train_loader.dataset)}, Validation size: {len(val_loader.dataset)}, Test size: {len(test_loader.dataset)}")
+
+    val_labels = []
+    for batch in val_loader:
+        labels = batch[-1]  # Extract labels (last element in the batch)
+        val_labels.extend(labels.tolist())  # Convert to list and store
+
+    import collections
+    val_class_counts = collections.Counter(val_labels)
+    print(f"Validation class distribution: {val_class_counts}")
     
     model = MultimodalDeep2DCNN(
         input_channels=3,  

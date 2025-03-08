@@ -1,27 +1,27 @@
-dataset_name: "ECG5000"
+dataset_name: "ItalyPowerDemand"
 num_classes: 2
 
-batch_size: 64
-learning_rate: 0.004
+batch_size: 32
+learning_rate: 0.004 #0.004
 weight_decay: 0.01
 num_epochs: 150
-patience: 20
+patience: 25
 
 multimodal:
   enabled: true
   chart_type: "scatter"  # Choose from: bar, line, area, scatter
-  color_mode: "monochrome"  # Choose from: color, monochrome
-  label_mode: "without_label"  # Choose from: with_label, without_label
+  color_mode: "color"  # Choose from: color, monochrome
+  label_mode: "with_label"  # Choose from: with_label, without_label
   scatter_mode: "plain"  # Only applicable for scatter charts
   bar_mode: "border" 
 
 numerical_processing: 
-  method: "transformer"
+  method: "transformer" # Choose from: fc, transformer
   transformer:
-      num_layers: 5
-      num_heads: 8
+      num_layers: 2
+      num_heads: 2
       hidden_dim: 64
-      dropout: 0.2
+      dropout: 0.245
 
 # models:
 #   - chart_type: "bar"

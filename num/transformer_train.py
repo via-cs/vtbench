@@ -23,9 +23,6 @@ def create_train_val_split(x_train, y_train, val_size=0.2, random_state=42):
     return x_train, x_val, y_train, y_val
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, num_epochs=20):
-    """
-    Trains the Transformer model and evaluates it on a validation set.
-    """
     model.train()
     epoch_losses = []
     epoch_accuracies = []
@@ -37,7 +34,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         total = 0
 
         for batch_x, batch_y in train_loader:
-            batch_x, batch_y = batch_x.to(device), batch_y.to(device)
+            batch_x, batch_y = batch_x.to(device), batch_y.to(device).long()  # ✅ Convert y to long
+
+            if batch_x.dim() == 2:
+                batch_x = batch_x.unsqueeze(-1)  # ✅ Ensure correct shape
 
             optimizer.zero_grad()
             outputs = model(batch_x)
@@ -54,7 +54,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         epoch_losses.append(avg_loss)
         epoch_accuracies.append(accuracy)
 
-        print(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {avg_loss:.4f}, Accuracy: {accuracy * 100:.2f}%")
+        print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.4f}, Accuracy: {accuracy*100:.2f}%")
 
         val_loss = None
         if val_loader is not None:

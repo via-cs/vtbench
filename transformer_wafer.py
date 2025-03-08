@@ -8,10 +8,10 @@ class TransformerClassifier(nn.Module):
         self.transformer = nn.Transformer(
             d_model=256,
             nhead=4,
-            num_encoder_layers=6,
+            num_encoder_layers=2,
             num_decoder_layers=0,
-            dim_feedforward=1024,
-            dropout=0.26150128170049447,
+            dim_feedforward=512,
+            dropout=0.20131737829927027,
             batch_first=True
         )
         self.fc = nn.Linear(256, num_classes)
