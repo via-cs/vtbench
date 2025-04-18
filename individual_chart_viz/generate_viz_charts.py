@@ -29,7 +29,7 @@ def generate_visualization(dataset_name, json_file):
     bar_width = 6
     bar_padding = 2
     x_offsets = np.arange(len(best_models_results_dict))  
-    line_gap = 0.8
+    line_gap = 0
     vertical_offset = 5
 
     class_colors = ['#1f77b4', '#ff7f0e']  # Blue for Class 0, Orange for Class 1
@@ -57,7 +57,10 @@ def generate_visualization(dataset_name, json_file):
                 ax.hlines(y=y_positions[j] - vertical_offset, xmin=i * (bar_width + bar_padding), 
                           xmax=i * (bar_width + bar_padding) + bar_width, colors='black', lw=1.0)
 
-        ax.text(i * (bar_width + bar_padding) + bar_width / 2, max(y_positions) + 5,
+        y_min, y_max = ax.get_ylim()
+        text_offset = (y_max - y_min) * 0.02
+
+        ax.text(i * (bar_width + bar_padding) + bar_width / 2, max(y_positions) + text_offset,
                 f'{accuracy:.2f}%', ha='center', fontsize=10, color='green')
 
     ax.set_title(f'Visualization of Model Predictions for {dataset_name}')
@@ -134,7 +137,9 @@ def generate_visualization_with_merged_bar(dataset_name, json_file):
         
         accuracy = np.mean(true_labels == predicted_labels) * 100
         y_positions = np.arange(len(true_labels)) * (1 + line_gap)
-        ax.text(i * (bar_width + bar_padding) + bar_width / 2, max(y_positions) + 10, f'{accuracy:.2f}%', ha='center', fontsize=10, color='green')
+        y_min, y_max = ax.get_ylim()
+        text_offset = (y_max - y_min) * 0.02
+        ax.text(i * (bar_width + bar_padding) + bar_width / 2, max(y_positions) + text_offset, f'{accuracy:.2f}%', ha='center', fontsize=10, color='green')
 
         for j in range(len(true_labels)):
             color = class_colors[true_labels[j]]
@@ -163,8 +168,11 @@ def generate_visualization_with_merged_bar(dataset_name, json_file):
                       xmax=len(best_models_results_dict) * (bar_width + bar_padding) + bar_width, colors='black', lw=1.0)
 
     merged_accuracy = np.mean(merged_correct) * 100
+    y_min, y_max = ax.get_ylim()
+    text_offset = (y_max - y_min) * 0.02
+
     ax.text(len(best_models_results_dict) * (bar_width + bar_padding) + bar_width / 2,
-            max(y_positions) + 10,
+            max(y_positions) + text_offset,
             f'{merged_accuracy:.2f}%', ha='center', fontsize=10, color='green')
 
     ax.set_title(f'Visualization of Model Predictions for {dataset_name} with Merged Bar')
@@ -199,7 +207,7 @@ def main(config_path):
         json_file = f"{dataset_name}_results.json"
 
         print(f"Generating visualization for dataset: {dataset_name}")
-        generate_visualization_with_merged_bar(dataset_name, json_file)
+        generate_visualization(dataset_name, json_file)
 
 
 if __name__ == "__main__":

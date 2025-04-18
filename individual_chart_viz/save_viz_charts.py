@@ -67,6 +67,9 @@ def main(config_path):
     config = load_config(config_path)
     best_models_results_dict = {}
 
+    output_dir = "individual_chart_viz/json_dicts"
+    os.makedirs(output_dir, exist_ok=True)
+
     for dataset in config['datasets']:
         dataset_name = dataset['name']
         train_file = dataset['train_file']
@@ -89,7 +92,7 @@ def main(config_path):
             train_and_evaluate_best_model(combo_key, model_type, X_train, y_train, X_test, y_test, train_file, dataset_name, best_models_results_dict)
 
 
-        json_file_name = (f"{dataset_name}_results.json")
+        json_file_name = os.path.join(output_dir, f"{dataset_name}_results.json")
         with open(json_file_name, 'w') as f:
             json.dump(best_models_results_dict, f, indent=4)
         print(f"Results for {dataset_name} saved to '{json_file_name}'.")
