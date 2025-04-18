@@ -1,0 +1,30 @@
+epoch = 49 lr = 0.001
+train_acc=	1.0	test_acc=	0.9970798182998053	loss=	0.00014085551083553582
+
+epoch = 99 lr = 0.001
+train_acc=	1.0	test_acc=	0.9972420506164829	loss=	9.327967745775823e-06
+
+epoch = 149 lr = 0.001
+train_acc=	1.0	test_acc=	0.9975665152498377	loss=	2.4569946617702954e-05
+
+epoch = 199 lr = 0.001
+train_acc=	1.0	test_acc=	0.9982154445165476	loss=	6.40749192371004e-07
+
+epoch = 249 lr = 0.001
+train_acc=	1.0	test_acc=	0.9977287475665152	loss=	7.450578465295621e-08
+
+epoch = 299 lr = 0.0005
+train_acc=	1.0	test_acc=	0.9967553536664504	loss=	2.6135612642974593e-05
+
+epoch = 349 lr = 0.00025
+train_acc=	1.0	test_acc=	0.9967553536664504	loss=	2.80140329778078e-06
+
+epoch = 399 lr = 0.000125
+train_acc=	1.0	test_acc=	0.9972420506164829	loss=	8.940664883994032e-07
+
+epoch = 449 lr = 0.0001
+train_acc=	1.0	test_acc=	0.9974042829331603	loss=	1.4901160305669237e-08
+
+epoch = 499 lr = 0.0001
+train_acc=	1.0	test_acc=	0.9978909798831928	loss=	0.0
+

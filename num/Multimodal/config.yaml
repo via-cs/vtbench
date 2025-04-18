@@ -1,4 +1,4 @@
-dataset_name: "Wafer"
+dataset_name: "ItalyPowerDemand"
 num_classes: 2
 
 batch_size: 32
@@ -9,19 +9,19 @@ patience: 25
 
 multimodal:
   enabled: true
-  chart_type: "scatter" # Choose from: bar, line, area, scatter
+  chart_type: "line" # Choose from: bar, line, area, scatter
   color_mode: "color" # Choose from: color, monochrome
   label_mode: "with_label" # Choose from: with_label, without_label
   scatter_mode: "plain" # Only applicable for scatter charts
   bar_mode: "border"
 
 numerical_processing:
-  method: "fc" # Choose from: fc, transformer
+  method: "transformer" # Choose from: fc, transformer
   transformer:
     num_layers: 2
-    num_heads: 4
+    num_heads: 8
     hidden_dim: 64 # 64
-    dropout: 0.1
+    dropout: 0.2
 # models:
 #   - chart_type: "bar"
 #     bar_mode: "border"
