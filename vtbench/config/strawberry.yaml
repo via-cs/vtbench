@@ -3,29 +3,54 @@ dataset:
   train_path: data/Strawberry/Strawberry_TRAIN.ts
   test_path: data/Strawberry/Strawberry_TEST.ts
 
-image_data:
-  root_dir: charts/Strawberry_images
-  chart_types:
-    - line_color_without_label
-    - bar_monochrome_with_label
-  image_settings:
-    dpi: 100
-    size: [3, 3]
-
-preprocessing:
-  generate_images: true
+# For generating images
+image_generation:
+  generate_images: false
   overwrite_existing: false
 
+# Model settings
 model:
-  type: five_branch               # single_chart / two_branch / five_branch
-  cnn_arch: deepcnn               # simplecnn / deepcnn
-  numerical_branch: transformer   # none / fcn / transformer / oscnn
-  fusion: dynamic_weighted_sum    # concat / dynamic_weighted_sum
+  type: single_modal_chart # single_modal_chart / two_branch / multi_modal_chart / multi_modal_chart_numerical
+  cnn_arch: simplecnn # simplecnn / deepcnn
+  numerical_branch: none # none / fcn / transformer / oscnn
+  fusion: concat # concat / weighted_sum
 
+  # Transformer-specific configuration (only used if numerical_branch: transformer)
+  transformer_config:
+    hidden_dim: 128
+    num_heads: 4
+    num_layers: 2
+    dropout: 0.1
+    output_dim: 256 # match CNN feature size: 64 for simplecnn, 256 for deepcnn
+
+# Branch-specific chart types and image settings
+chart_branches:
+  branch_1:
+    chart_type: area
+    color_mode: color
+    label_mode: with_label
+  branch_2:
+    chart_type: bar
+    color_mode: monochrome
+    label_mode: no_label
+    bar_mode: border
+  branch_3:
+    chart_type: line
+    color_mode: color
+    label_mode: no_label
+  branch_4:
+    chart_type: scatter
+    color_mode: monochrome
+    label_mode: with_label
+    scatter_mode: plain
+
+# Training parameters
 training:
-  batch_size: 64
+  batch_size: 32
   epochs: 100
-  learning_rate: 0.001
+  learning_rate: 0.0005
 
+# Output settings
 output:
-  dir: results/strawberry/
+  dir: results/strawberry_run/
+  save_model: true

@@ -1,0 +1,2 @@
+[console_scripts]
+vtbench = vtbench.main:main

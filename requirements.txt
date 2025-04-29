@@ -1,0 +1,7 @@
+torch>=1.9
+torchvision>=0.10
+numpy
+scikit-learn
+imbalanced-learn
+PyYAML
+matplotlib
