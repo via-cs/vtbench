@@ -8,7 +8,7 @@ from vtbench.models.cnn.deepcnn import DeepCNN
 from vtbench.models.numerical.fcn import NumericalFCN
 from vtbench.models.numerical.transformer import NumericalTransformer
 from vtbench.models.numerical.oscnn import NumericalOSCNN
-from vtbench.models.multimodal.two_branch import TwoBranchModel
+from vtbench.models.multimodal.one_chart_numerical import TwoBranchModel
 from vtbench.models.multimodal.multi_chart import MultiChartModel
 from vtbench.models.multimodal.multi_chart_numerical import MultiChartNumericalModel
 from vtbench.models.multimodal.fusion import FusionModule
@@ -60,11 +60,14 @@ def train_single_chart_model(config):
     train_loader = DataLoader(train_datasets[0], batch_size=config['training']['batch_size'], shuffle=True)
     test_loader = DataLoader(test_datasets[0], batch_size=config['training']['batch_size'], shuffle=False)
 
+    labels = [label for _, label in train_datasets[0]]
+    num_classes = len(set(labels))
+
     cnn_arch = config['model']['cnn_arch']
     if cnn_arch == 'simplecnn':
-        model = SimpleCNN(input_channels = 3, num_classes = None)
+        model = SimpleCNN(input_channels = 3, num_classes = num_classes)
     elif cnn_arch == 'deepcnn':
-        model = DeepCNN(input_channels = 3, num_classes = None)
+        model = DeepCNN(input_channels = 3, num_classes = num_classes)
     else:
         raise ValueError(f"Unsupported CNN architecture: {cnn_arch}")
 
