@@ -10,8 +10,8 @@ image_generation:
 
 # Model settings
 model:
-  type: single_modal_chart # single_modal_chart / two_branch / multi_modal_chart / multi_modal_chart_numerical
-  cnn_arch: simplecnn # simplecnn / deepcnn
+  type: multi_modal_chart # single_modal_chart / two_branch / multi_modal_chart / multi_modal_chart_numerical
+  chart_model: simplecnn # simplecnn / deepcnn
   numerical_branch: none # none / fcn / transformer / oscnn
   fusion: concat # concat / weighted_sum
 
@@ -41,12 +41,12 @@ chart_branches:
   branch_4:
     chart_type: scatter
     color_mode: monochrome
-    label_mode: with_label
+    label_mode: without_label
     scatter_mode: plain
 
 # Training parameters
 training:
-  batch_size: 32
+  batch_size: 64
   epochs: 100
   learning_rate: 0.0005
 

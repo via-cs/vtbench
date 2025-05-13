@@ -24,12 +24,11 @@ class SimpleCNN(nn.Module):
         
         self.flatten_size = self._get_flatten_size(input_channels)
 
-        self.fc_layers = nn.Sequential(
+        self.feature_extractor = nn.Sequential(
             nn.Flatten(),
             nn.Linear(self.flatten_size, 64),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(64, num_classes)
+            nn.Dropout(0.5)
         )
 
         if num_classes is not None:
@@ -40,7 +39,8 @@ class SimpleCNN(nn.Module):
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.feature_extractor(x)
+        x = self.classifier(x)
         return x
 
     def _get_flatten_size(self, input_channels):

@@ -34,35 +34,31 @@ class DeepCNN(nn.Module):
 
         self.flatten_size = self._get_flatten_size(input_channels)
 
-        # If num_classes is None, act as a feature extractor
-        if num_classes is None:
-            self.fc_layers = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(self.flatten_size, 512),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.Linear(512, 256),
-                nn.ReLU()
-                # Output = 256-dim feature
-            )
-        else:
-            self.fc_layers = nn.Sequential(
-                nn.Flatten(),
-                nn.Linear(self.flatten_size, 512),
-                nn.ReLU(),
-                nn.Dropout(0.5),
-                nn.Linear(512, 256),
-                nn.ReLU(),
+        self.feature_extractor = nn.Sequential(
+            nn.Flatten(), 
+            nn.Linear(self.flatten_size, 512),
+            nn.ReLU(), 
+            nn.Dropout(0.5),
+            nn.Linear(512, 256),
+            nn.ReLU()
+        )
+
+        if num_classes is not None: 
+            self.classifier = nn.Sequential(
                 nn.Dropout(0.5),
                 nn.Linear(256, 128),
-                nn.ReLU(),
+                nn.ReLU(), 
                 nn.Dropout(0.5),
-                nn.Linear(128, num_classes)  # Final classification layer
+                nn.Linear(128, num_classes)
             )
+        else: 
+            self.classifier = nn.Identity()
+        
 
     def forward(self, x):
         x = self.conv_layers(x)
-        x = self.fc_layers(x)
+        x = self.feature_extractor(x)
+        x = self.classifier(x)
         return x
 
     def _get_flatten_size(self, input_channels):
