@@ -10,7 +10,7 @@ clean:
 install: clean
 	pip install .
 
-.PHONY install-dev 
+.PHONY: install-dev 
 install-dev: clean
 	pip install -e .[dev]
 
@@ -26,14 +26,6 @@ test:
 .PHONY: lint
 lint: 
 	flake8 vtbench tests
-
-
-# FORMAT
-
-.PHONY: lint
-lint: 
-	flake8 vtbench tests
-
 
 # VERSION BUMPING
 

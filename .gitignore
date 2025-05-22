@@ -4,3 +4,4 @@ __pycache___
 .DS_Store
 *.egg-info
 vtbench/__pycache___
+data
