@@ -3,10 +3,14 @@ from imblearn.over_sampling import SMOTE
 import torch
 from collections import Counter
 
+import numpy as np
+import torch
+from collections import Counter
+
 def read_ucr(filename):
     data = []
     labels = []
-    label_set = set()  
+    raw_labels = []
 
     with open(filename, 'r') as file:
         for line in file:
@@ -14,20 +18,21 @@ def read_ucr(filename):
             if len(parts) < 2:
                 continue
             label = int(parts[-1].split(':')[-1])
-            label_set.add(label)
+            raw_labels.append(label)
 
- 
-    if label_set == {0, 1}: 
-        def normalize(label):
-            return label
-    elif label_set == {1, 2}:  
-        def normalize(label):
-            return 0 if label == 1 else 1
-    elif label_set == {-1, 1}:  
-        def normalize(label):
-            return 0 if label == -1 else 1
+    label_set = set(raw_labels)
+
+   
+    if label_set == {0, 1}:
+        normalize = lambda x: x
+    elif label_set == {1, 2}:
+        normalize = lambda x: 0 if x == 1 else 1
+    elif label_set == {-1, 1}:
+        normalize = lambda x: 0 if x == -1 else 1
     else:
-        raise ValueError(f"Unexpected label set: {label_set}")
+       
+        label_map = {label: idx for idx, label in enumerate(sorted(label_set))}
+        normalize = lambda x: label_map[x]
 
     with open(filename, 'r') as file:
         for line in file:
@@ -36,12 +41,14 @@ def read_ucr(filename):
                 continue
             features = [float(f) for f in parts[:-1]]
             label = int(parts[-1].split(':')[-1])
-            normalized_label = normalize(label)
-            labels.append(normalized_label)
+            labels.append(normalize(label))
             data.append(features)
 
-    print("Data loaded")
-    return np.array(data), np.array(labels)
+    data = np.array(data)
+    labels = np.array(labels)
+
+    print(f"{filename} loaded. Total samples: {len(labels)}, Class distribution: {Counter(labels)}")
+    return data, labels, label_map
 
 
 def read_ecg5000(filename):

@@ -123,7 +123,7 @@ class TimeSeriesImageDatasetMC(Dataset):
         self.augment = augment
         self.config = config 
         
-        self.base_dir = f"data/{self.dataset_name}_images"
+        self.base_dir = f"chart_images/{self.dataset_name}_images"
         self.area_chart_dir_mc = f'{self.base_dir}/area_charts_{color_mode}_{label_mode}/{split}'
         self.line_chart_dir_mc = f'{self.base_dir}/line_charts_{color_mode}_{label_mode}/{split}'
         self.scatter_chart_dir_mc = f'{self.base_dir}/scatter_charts_{scatter_mode}_{color_mode}_{label_mode}/{split}' if scatter_mode else f'{self.base_dir}/scatter_charts_{color_mode}_{label_mode}/{split}'

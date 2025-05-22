@@ -1,98 +1,135 @@
-import os
-import numpy as np
 import pandas as pd
-import re
-from data_utils import read_ucr, normalize_data
-from OS_CNN_easy_use import OS_CNN_easy_use
+import torch
+import numpy as np
+import traceback
+import os
+import argparse
+from collections import Counter
 
-Result_log_folder = 'Results_of_OS_CNN'
-os.makedirs(Result_log_folder, exist_ok=True)
+from num.data_utils import read_ucr, read_ecg5000, normalize_data
+from num.models.SimpleCNN import Simple2DCNN
+from num.models.DeepCNN import Deep2DCNN
+from num.CNN_train import create_dataloaders, train_model, evaluate_model
 
-excel_file_path = os.path.join(Result_log_folder, "OSCNN_results.xlsx")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-def get_unique_filename(base_path):
-    if not os.path.exists(base_path):
-        return base_path
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Run CNN on various datasets with different configurations.")
+    parser.add_argument('--train_file', type=str, required=True, help='Path to the training dataset')
+    parser.add_argument('--test_file', type=str, required=True, help='Path to the testing dataset')
+    parser.add_argument('--augment', action="store_true", help="Enable image augmentation")
+    return parser.parse_args()
+
+def get_dataset_name_from_path(dataset_path):
+    return os.path.basename(os.path.dirname(dataset_path))
+
+def get_unique_filename(dataset_name):
+    base_name = f"{dataset_name}_results.xlsx"
+    if not os.path.exists(base_name):
+        return base_name
     counter = 1
-    while os.path.exists(f"{base_path.replace('.xlsx', f'_{counter}.xlsx')}"):
+    while os.path.exists(f"{dataset_name}_results_{counter}.xlsx"):
         counter += 1
-    return base_path.replace('.xlsx', f'_{counter}.xlsx')
+    return f"{dataset_name}_results_{counter}.xlsx"
 
-excel_file_path = get_unique_filename(excel_file_path)
-
-
-def write_epoch_results_to_excel(file_path, epoch_results):
+def write_results_to_excel(file_path, results, version):
     try:
         df = pd.read_excel(file_path)
     except FileNotFoundError:
         df = pd.DataFrame()
-
-    results_df = pd.DataFrame(epoch_results)
+    results_df = pd.DataFrame([results])
+    results_df['Version'] = version
     df = pd.concat([df, results_df], ignore_index=True)
-
     with pd.ExcelWriter(file_path, engine='openpyxl', mode='w') as writer:
         df.to_excel(writer, index=False)
 
+def calculate_and_save_averages(file_path, model_name, combo_key):
+    print(f"\nCalculating averages for model '{model_name}' and combination '{combo_key}'...\n")
+    df = pd.read_excel(file_path)
+    average_results = df.mean(numeric_only=True).to_dict()
+    average_results.update({'Model': model_name, 'Combination': combo_key, 'Version': 'Average'})
+    df = pd.concat([df, pd.DataFrame([average_results])], ignore_index=True)
+    df.to_excel(file_path, index=False)
+    print(f"Averages saved to: {file_path}")
 
-def parse_log_file(log_file, dataset_name):
-    results = []
-    with open(log_file, 'r') as f:
-        lines = f.readlines()
+def main():
+    args = parse_arguments()
+    print(f"Train File: {args.train_file}, Test File: {args.test_file}")
+    dataset_name = get_dataset_name_from_path(args.train_file)
+    excel_file_path = get_unique_filename(dataset_name)
+    print(f"Results will be saved to: {excel_file_path}")
 
-    epoch_num = None
-    for i in range(len(lines)):
-        line = lines[i].strip()
-        if line.startswith("epoch"):
-            match_epoch = re.search(r"epoch\s*=\s*(\d+)", line)
-            if match_epoch:
-                epoch_num = int(match_epoch.group(1))
-        elif "train_acc=" in line and "test_acc=" in line:
-            match_train = re.search(r"train_acc=\s*([\d\.]+)", line)
-            match_test = re.search(r"test_acc=\s*([\d\.]+)", line)
-            if match_train and match_test and epoch_num is not None:
-                results.append({
-                    "Dataset": dataset_name,
-                    "Epoch": epoch_num,
-                    "Train Accuracy": float(match_train.group(1)),
-                    "Test Accuracy": float(match_test.group(1))
-                })
-    return results
+    try:
+        if "ECG5000" in dataset_name:
+            print("Detected ECG5000 dataset. Using `read_ecg5000()`...")
+            x_train, y_train = read_ecg5000(args.train_file)
+            x_test, y_test = read_ecg5000(args.test_file)
+            label_map = None
+        else:
+            print("Using `read_ucr()` for dataset:", dataset_name)
+            x_train, y_train, label_map = read_ucr(args.train_file)
+            x_test, y_test, _ = read_ucr(args.test_file)
 
+        print(f"Data loaded successfully. Train samples: {len(y_train)}, Test samples: {len(y_test)}")
+        print(f"Train class distribution: {Counter(y_train)}")
 
-# List of datasets to run
-dataset_list = ["Yoga", "Strawberry"]  # Add more as needed
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        traceback.print_exc()
+        return
 
-for dataset_name in dataset_list:
-    print(f"\n=== Running on dataset: {dataset_name} ===")
-
-    train_file = f"../../data/{dataset_name}/{dataset_name}_TRAIN.ts"
-    test_file = f"../../data/{dataset_name}/{dataset_name}_TEST.ts"
-
-    x_train, y_train = read_ucr(train_file)
-    x_test, y_test = read_ucr(test_file)
+    nb_classes = len(np.unique(y_train))
     x_train, x_test = normalize_data(x_train, x_test)
 
-    x_train = x_train.astype(np.float32)
-    x_test = x_test.astype(np.float32)
+    model_configurations = {
+        'Simple2DCNN': Simple2DCNN,
+        'Deep2DCNN': Deep2DCNN
+    }
 
-    model = OS_CNN_easy_use(
-        Result_log_folder=Result_log_folder,
+    dataloaders = create_dataloaders(
+        x_train, y_train, x_test, y_test,
+        train_file=args.train_file,
         dataset_name=dataset_name,
-        device="cuda:0",
-        max_epoch=500,
-        paramenter_number_of_layer_list=[8 * 128, 5 * 128 * 256 + 2 * 256 * 128],
+        augment=args.augment
     )
 
-    model.fit(x_train, y_train, x_test, y_test)
+    print("Dataloaders created successfully.")
 
-    log_file = f"Results_of_OS_CNN{dataset_name}/{dataset_name}_.txt"
-    if not os.path.exists(log_file):
-        print(f"❌ Log file not found: {log_file}")
-        continue
+    for model_name, model_class in model_configurations.items():
+        print(f"Using model: {model_name}")
+        for combo_key, loaders in dataloaders.items():
+            print(f"Processing combination: {combo_key}")
+            train_loader, val_loader, test_loader = loaders
 
-    epoch_results = parse_log_file(log_file, dataset_name)
-    if epoch_results:
-        write_epoch_results_to_excel(excel_file_path, epoch_results)
-        print(f"✅ Epoch results written to: {excel_file_path}")
-    else:
-        print(f"No epoch results found in log for {dataset_name}")
+            for iteration in range(10):
+                print(f"Running iteration {iteration + 1} for {model_name} with {combo_key}")
+                model = model_class(3, nb_classes).to(device)
+                best_val_loss, best_val_accuracy = train_model(model, train_loader, val_loader, num_epochs=100)
+                metrics = evaluate_model(model, test_loader)
+
+                results = {
+                    'Model': model_name,
+                    'Combination': combo_key,
+                    'Best Validation Loss': best_val_loss,
+                    'Best Validation Accuracy': best_val_accuracy,
+                    'Test Loss': metrics['test_loss'],
+                    'Test Accuracy': metrics['test_accuracy'],
+                    'Precision': metrics['precision'],
+                    'Recall': metrics['recall'],
+                    'F1 Score': metrics['f1_score'],
+                    'AUC': metrics['auc'],
+                    'Balanced Accuracy': metrics['balanced_accuracy'],
+                    'Specificity': metrics['specificity']
+                }
+
+                write_results_to_excel(excel_file_path, results, f'v{iteration + 1}')
+                print(f"Finished iteration {iteration + 1} for {model_name} with {combo_key}")
+
+            calculate_and_save_averages(excel_file_path, model_name, combo_key)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        traceback.print_exc()
