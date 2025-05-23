@@ -1,80 +1,74 @@
 import torch
+from sklearn.metrics import (
+    accuracy_score, precision_score, recall_score,
+    f1_score, roc_auc_score, confusion_matrix
+)
+import torch.nn.functional as F
+import torch.nn as nn 
+
+def move_to_device(tensors, device):
+    if isinstance(tensors, (tuple, list)):
+        return [t.to(device) for t in tensors]
+    return tensors.to(device)
 
 
-def evaluate_model(model, test_chart_loader, test_num_loader=None):
-    
-
-    model.eval()
-    criterion = torch.nn.CrossEntropyLoss()
-
+def evaluate_model(model, test_chart_loaders, test_num_loader=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
+    model = model.to(device)
+    model.eval()
+    all_preds, all_probs, all_labels = [], [], []
+    total_loss = 0.0
+    criterion = nn.CrossEntropyLoss()
 
-    running_loss = 0.0
-    correct = 0
-    total = 0
-
-    def move_to_device(x):
-        if isinstance(x, torch.Tensor):
-            return x.to(device)
-        elif isinstance(x, (list, tuple)):
-            return [move_to_device(i) for i in x]
-        else:
-            return x
-
-    # Check if multimodal
-    if isinstance(test_chart_loader, list):  
-        chart_loader_branches = test_chart_loader
-        is_multimodal = True
+    if isinstance(test_chart_loaders, list):
+        iterator = zip(*test_chart_loaders)
     else:
-        chart_loader_branches = [test_chart_loader]
-        is_multimodal = False
+        iterator = test_chart_loaders
 
-    # Setup iterator
-    if test_num_loader:
-        iterator = zip(zip(*chart_loader_branches), test_num_loader)
-    else:
-        iterator = zip(*chart_loader_branches)
-
-    with torch.inference_mode():
+    with torch.no_grad():
         for batch in iterator:
-            if test_num_loader:
-                chart_batch, num_batch = batch
-                chart_inputs = move_to_device(chart_batch)
-                num_features, labels = move_to_device(num_batch)
-                chart_imgs = [img for img, _ in chart_inputs]
-
-                outputs = model((chart_imgs, num_features))   # 🚨 KEY
-
-            else:
-                if is_multimodal:
-                    chart_inputs = move_to_device(batch)
-                    labels = chart_inputs[0][1]
-                    chart_imgs = [img for img, _ in chart_inputs]
-
-                    outputs = model(chart_imgs)   # 🚨 KEY
+            if isinstance(test_chart_loaders, list):
+                batch = [move_to_device(b, device) for b in batch]
+                chart_imgs = [img for img, _ in batch]
+                labels = batch[0][1]
+                if test_num_loader:
+                    num_input, _ = move_to_device(next(iter(test_num_loader)), device)
+                    outputs = model((chart_imgs, num_input))
                 else:
-                    images, labels = move_to_device(batch)
-
-                    outputs = model(images)   # 🚨 KEY
-
-            labels = labels.to(device)
+                    outputs = model(chart_imgs)
+            else:
+                images, labels = move_to_device(batch, device)
+                outputs = model(images)
 
             loss = criterion(outputs, labels)
-            running_loss += loss.item()
+            total_loss += loss.item()
 
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            probs = F.softmax(outputs, dim=1)[:, 1] if outputs.shape[1] == 2 else F.softmax(outputs, dim=1).max(dim=1)[0]
+            preds = outputs.argmax(dim=1)
 
-    test_loss = running_loss / len(chart_loader_branches[0])
-    test_accuracy = 100 * correct / total
+            all_preds.extend(preds.cpu().numpy())
+            all_probs.extend(probs.cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
 
-    print(f"\n=== Evaluation Results ===")
-    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%\n")
+    acc = accuracy_score(all_labels, all_preds)
+    precision = precision_score(all_labels, all_preds, average='binary' if len(set(all_labels)) == 2 else 'macro')
+    recall = recall_score(all_labels, all_preds, average='binary' if len(set(all_labels)) == 2 else 'macro')
+    f1 = f1_score(all_labels, all_preds, average='binary' if len(set(all_labels)) == 2 else 'macro')
+
+    try:
+        auc = roc_auc_score(all_labels, all_probs)
+    except:
+        auc = float('nan')
+
+    tn, fp, fn, tp = confusion_matrix(all_labels, all_preds, labels=[0, 1]).ravel() if len(set(all_labels)) == 2 else [0, 0, 0, 0]
+    specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
     return {
-        "test_loss": test_loss,
-        "test_accuracy": test_accuracy
+        "loss": total_loss / len(all_preds),
+        "accuracy": acc,
+        "precision": precision,
+        "recall": recall,
+        "f1_score": f1,
+        "auc": auc,
+        "specificity": specificity
     }
-

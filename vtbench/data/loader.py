@@ -1,22 +1,14 @@
-import os
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
-from torch.utils.data import DataLoader, SubsetRandomSampler
-from vtbench.data.chart_generator import TimeSeriesImageDataset, NumericalDataset
 from sklearn.model_selection import StratifiedShuffleSplit
-
-# ------------------------
-# Utility to load `.ts` files
-# ------------------------
+from vtbench.data.chart_generator import TimeSeriesImageDataset, NumericalDataset
+from collections import Counter
 
 def read_ucr(filename):
-    data = []
-    labels = []
-    label_set = set()  
-
-    print(f"Loading file: {filename}")
-
+    data, labels = [], []
+    label_set = set()
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
@@ -25,185 +17,121 @@ def read_ucr(filename):
             label = int(parts[-1].split(':')[-1])
             label_set.add(label)
 
- 
-    if label_set == {0, 1}: 
-        def normalize(label):
-            return label
-    elif label_set == {1, 2}:  
-        def normalize(label):
-            return 0 if label == 1 else 1
-    elif label_set == {-1, 1}:  
-        def normalize(label):
-            return 0 if label == -1 else 1
+    if label_set == {0, 1}:
+        normalize = lambda l: l
+    elif label_set == {1, 2}:
+        normalize = lambda l: 0 if l == 1 else 1
+    elif label_set == {-1, 1}:
+        normalize = lambda l: 0 if l == -1 else 1
     else:
         raise ValueError(f"Unexpected label set: {label_set}")
 
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
-            if len(parts) < 2:
-                continue
             features = [float(f) for f in parts[:-1]]
             label = int(parts[-1].split(':')[-1])
-            normalized_label = normalize(label)
-            labels.append(normalized_label)
             data.append(features)
+            labels.append(normalize(label))
 
-    print(f"Finished loading {filename} - Samples: {len(labels)}")
     return np.array(data), np.array(labels)
 
 
-def create_dataloaders(config, seed=42):
-    """
-    Create train, val, test dataloaders with consistent splits and label alignment.
-    Validation is created from the test set (20% of test).
-    """
+def stratified_val_test_split(dataset, labels, val_size=0.2, seed=42):
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=val_size, random_state=seed)
+    indices = np.arange(len(dataset))
+    for val_idx, test_idx in sss.split(indices, labels):
+        return Subset(dataset, val_idx), Subset(dataset, test_idx)
 
+
+def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform):
+    datasets = []
+    for branch_cfg in chart_branches.values():
+        ds = TimeSeriesImageDataset(
+            dataset_name=dataset_name,
+            time_series_data=X,
+            labels=y,
+            split=split,
+            chart_type=branch_cfg['chart_type'],
+            color_mode=branch_cfg.get('color_mode', 'color'),
+            label_mode=branch_cfg.get('label_mode', 'with_label'),
+            scatter_mode=branch_cfg.get('scatter_mode', 'plain'),
+            bar_mode=branch_cfg.get('bar_mode', 'fill'),
+            transform=transform,
+        )
+        datasets.append(ds)
+    return datasets
+
+
+def create_dataloaders(config, seed=42):
     model_type = config['model']['type']
-    chart_branches = config['chart_branches']
+    chart_branches = config.get('chart_branches', {})
     dataset_name = config['dataset']['name']
     batch_size = config['training']['batch_size']
 
-    transform = transforms.Compose([
+    base_transforms = [
         transforms.Resize((64, 64)),
         transforms.ToTensor()
-    ])
+    ]
+    aug_transforms = [
+        transforms.RandomRotation(degrees=5),
+        transforms.RandomResizedCrop(size=(64, 64), scale=(0.9, 1.0)),
+        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1)
+    ]
 
-    # === Load .ts files ===
+    transform_train = transforms.Compose(base_transforms) 
+    transform_eval = transforms.Compose(base_transforms)
+
+    # Load raw data
     X_train, y_train = read_ucr(config['dataset']['train_path'])
-    X_test_full, y_test_full = read_ucr(config['dataset']['test_path'])
+    X_test, y_test = read_ucr(config['dataset']['test_path'])
 
-    # === Stratified split: test → val + test_final ===
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.8, random_state=seed)
-    val_idx, test_idx = next(sss.split(X_test_full, y_test_full))
-    X_val, y_val = X_test_full[val_idx], y_test_full[val_idx]
-    X_test, y_test = X_test_full[test_idx], y_test_full[test_idx]
+    # Print label dist for sanity
+    print("Train labels:", Counter(y_train))
+    print("Test labels:", Counter(y_test))
 
-    # === Chart dataset builder ===
-    def make_chart_dataset(X, y, split_type):
-        datasets = []
-        for branch_cfg in chart_branches.values():
-            ds = TimeSeriesImageDataset(
-                dataset_name=dataset_name,
-                time_series_data=X,
-                labels=y,
-                split=split_type,
-                chart_type=branch_cfg['chart_type'],
-                color_mode=branch_cfg.get('color_mode', 'color'),
-                label_mode=branch_cfg.get('label_mode', 'with_label'),
-                scatter_mode=branch_cfg.get('scatter_mode', 'plain'),
-                bar_mode=branch_cfg.get('bar_mode', 'fill'),
-                transform=transform
-            )
-            datasets.append(ds)
-        return datasets
+    # Build test dataset to split into val + test subsets
+    temp_ds = TimeSeriesImageDataset(
+        dataset_name=dataset_name,
+        time_series_data=X_test,
+        labels=y_test,
+        split='test',
+        chart_type=list(chart_branches.values())[0]['chart_type'],
+        color_mode=list(chart_branches.values())[0].get('color_mode', 'color'),
+        label_mode=list(chart_branches.values())[0].get('label_mode', 'with_label'),
+        transform=transform_eval
+    )
+    val_ds, test_ds = stratified_val_test_split(temp_ds, y_test, val_size=0.2, seed=seed)
 
-    # === Handle model types ===
+    # Create final datasets for chart input
+    chart_datasets = {
+        'train': build_chart_datasets(X_train, y_train, 'train', dataset_name, chart_branches, transform_train),
+        'val': [Subset(ds, val_ds.indices) for ds in build_chart_datasets(X_test, y_test, 'test', dataset_name, chart_branches, transform_eval)],
+        'test': [Subset(ds, test_ds.indices) for ds in build_chart_datasets(X_test, y_test, 'test', dataset_name, chart_branches, transform_eval)]
+    }
 
-    if model_type == 'single_modal_chart':
-        first_branch_cfg = list(chart_branches.values())[0]
+    # Numerical datasets
+    numerical_datasets = {
+        'train': NumericalDataset(X_train, y_train),
+        'val': Subset(NumericalDataset(X_test, y_test), val_ds.indices),
+        'test': Subset(NumericalDataset(X_test, y_test), test_ds.indices)
+    }
 
-        def build_single_chart_loader(X, y, split_type):
-            dataset = TimeSeriesImageDataset(
-                dataset_name=dataset_name,
-                time_series_data=X,
-                labels=y,
-                split=split_type,
-                chart_type=first_branch_cfg['chart_type'],
-                color_mode=first_branch_cfg.get('color_mode', 'color'),
-                label_mode=first_branch_cfg.get('label_mode', 'with_label'),
-                scatter_mode=first_branch_cfg.get('scatter_mode', 'plain'),
-                bar_mode=first_branch_cfg.get('bar_mode', 'fill'),
-                transform=transform
-            )
-            return DataLoader(dataset, batch_size=batch_size, shuffle=False, drop_last=True)
+    dataloaders = {}
+    for split in ['train', 'val', 'test']:
+        shuffle = (split == 'train')
+        chart_loaders = [DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=True) for ds in chart_datasets[split]]
 
-        return {
-            'train': build_single_chart_loader(X_train, y_train, 'train'),
-            'val': build_single_chart_loader(X_val, y_val, 'val'),
-            'test': build_single_chart_loader(X_test, y_test, 'test'),
+        numerical_loader = None
+        if model_type in ['two_branch', 'multi_modal_chart_numerical'] and config['model'].get('numerical_branch', 'none') != 'none':
+            numerical_loader = DataLoader(numerical_datasets[split], batch_size=batch_size, shuffle=shuffle, drop_last=True)
+
+        if model_type == 'single_modal_chart':
+            chart_loaders = chart_loaders[0]
+
+        dataloaders[split] = {
+            'chart': chart_loaders,
+            'numerical': numerical_loader
         }
 
-    elif model_type == 'multi_modal_chart':
-        return {
-            'train': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                      for ds in make_chart_dataset(X_train, y_train, 'train')],
-            'val': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                    for ds in make_chart_dataset(X_val, y_val, 'val')],
-            'test': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                     for ds in make_chart_dataset(X_test, y_test, 'test')],
-        }
-
-    elif model_type == 'multi_modal_chart_numerical':
-        return {
-            'chart': {
-                'train': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                          for ds in make_chart_dataset(X_train, y_train, 'train')],
-                'val': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                        for ds in make_chart_dataset(X_val, y_val, 'val')],
-                'test': [DataLoader(ds, batch_size=batch_size, shuffle=False, drop_last=True)
-                         for ds in make_chart_dataset(X_test, y_test, 'test')],
-            },
-            'numerical': {
-                'train': DataLoader(NumericalDataset(X_train, y_train), batch_size=batch_size, shuffle=False, drop_last=True),
-                'val': DataLoader(NumericalDataset(X_val, y_val), batch_size=batch_size, shuffle=False, drop_last=True),
-                'test': DataLoader(NumericalDataset(X_test, y_test), batch_size=batch_size, shuffle=False, drop_last=True),
-            }
-        }
-
-    elif model_type == 'two_branch':
-        first_branch_cfg = list(chart_branches.values())[0]
-        chart_train = TimeSeriesImageDataset(
-            dataset_name=dataset_name,
-            time_series_data=X_train,
-            labels=y_train,
-            split='train',
-            chart_type=first_branch_cfg['chart_type'],
-            color_mode=first_branch_cfg.get('color_mode', 'color'),
-            label_mode=first_branch_cfg.get('label_mode', 'with_label'),
-            scatter_mode=first_branch_cfg.get('scatter_mode', 'plain'),
-            bar_mode=first_branch_cfg.get('bar_mode', 'fill'),
-            transform=transform
-        )
-        chart_val = TimeSeriesImageDataset(
-            dataset_name=dataset_name,
-            time_series_data=X_val,
-            labels=y_val,
-            split='val',
-            chart_type=first_branch_cfg['chart_type'],
-            color_mode=first_branch_cfg.get('color_mode', 'color'),
-            label_mode=first_branch_cfg.get('label_mode', 'with_label'),
-            scatter_mode=first_branch_cfg.get('scatter_mode', 'plain'),
-            bar_mode=first_branch_cfg.get('bar_mode', 'fill'),
-            transform=transform
-        )
-        chart_test = TimeSeriesImageDataset(
-            dataset_name=dataset_name,
-            time_series_data=X_test,
-            labels=y_test,
-            split='test',
-            chart_type=first_branch_cfg['chart_type'],
-            color_mode=first_branch_cfg.get('color_mode', 'color'),
-            label_mode=first_branch_cfg.get('label_mode', 'with_label'),
-            scatter_mode=first_branch_cfg.get('scatter_mode', 'plain'),
-            bar_mode=first_branch_cfg.get('bar_mode', 'fill'),
-            transform=transform
-        )
-
-        return {
-            'chart': {
-                'train': DataLoader(chart_train, batch_size=batch_size, shuffle=False, drop_last=True),
-                'val': DataLoader(chart_val, batch_size=batch_size, shuffle=False, drop_last=True),
-                'test': DataLoader(chart_test, batch_size=batch_size, shuffle=False, drop_last=True),
-            },
-            'numerical': {
-                'train': DataLoader(NumericalDataset(X_train, y_train), batch_size=batch_size, shuffle=False, drop_last=True),
-                'val': DataLoader(NumericalDataset(X_val, y_val), batch_size=batch_size, shuffle=False, drop_last=True),
-                'test': DataLoader(NumericalDataset(X_test, y_test), batch_size=batch_size, shuffle=False, drop_last=True),
-            }
-        }
-
-    else:
-        raise ValueError(f"Unsupported model type: {model_type}")
-
-
+    return dataloaders

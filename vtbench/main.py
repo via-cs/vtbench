@@ -27,30 +27,20 @@ def main():
     # ====================
     #  Prepare test loaders
     # ====================
-    test_datasets = create_dataloaders(config, split='test')
+    all_datasets = create_dataloaders(config)
+    test_chart = all_datasets['test']['chart']
+    test_num = all_datasets['test']['numerical']
 
     if config['model']['type'] == 'single_modal_chart':
-        test_loader = torch.utils.data.DataLoader(
-            test_datasets[0], batch_size=config['training']['batch_size'], shuffle=False
-        )
+        test_loader = test_chart  # already a single DataLoader
         test_num_loader = None
 
+    elif config['model']['type'] in ['two_branch', 'multi_modal_chart']:
+        test_loader = test_chart  # list of loaders
+        test_num_loader = test_num  # could be None
     else:
-        test_loader = [torch.utils.data.DataLoader(
-            dataset, batch_size=config['training']['batch_size'], shuffle=False
-        ) for dataset in test_datasets]
+        raise ValueError(f"Unsupported model type: {config['model']['type']}")
 
-        # Only load numerical if needed
-        if config['model']['type'] in ['two_branch', 'multi_modal_chart_numerical']:
-            from vtbench.data.loader import NumericalDataset
-            X_test, y_test = read_ucr(config['dataset']['test_path'])
-            test_num_loader = torch.utils.data.DataLoader(
-                NumericalDataset(X_test, y_test),
-                batch_size=config['training']['batch_size'],
-                shuffle=False
-            )
-        else:
-            test_num_loader = None
 
     # ====================
     #  Evaluation

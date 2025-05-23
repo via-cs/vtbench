@@ -141,6 +141,19 @@ class TimeSeriesImageDataset(Dataset):
 
         label = torch.tensor(self.labels[idx], dtype=torch.long)
         return img, label
+    
+
+# Numerical Dataset 
+class NumericalDataset(Dataset):
+    def __init__(self, numerical_data, labels):
+        self.numerical_data = torch.tensor(numerical_data, dtype=torch.float32)
+        self.labels = torch.tensor(labels, dtype=torch.long)
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        return self.numerical_data[idx], self.labels[idx]
 
 
 def display_chart(image_path):

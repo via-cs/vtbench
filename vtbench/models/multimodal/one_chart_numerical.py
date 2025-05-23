@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class TwoBranchModel(nn.Module):
-    def __init__(self, chart_branch, numerical_branch, fusion_module):
+    def __init__(self, chart_branch, numerical_branch, fusion_module, num_classes=2):
         super(TwoBranchModel, self).__init__()
         self.chart_branch = chart_branch
         self.numerical_branch = numerical_branch
         self.fusion = fusion_module
-        self.classifier = nn.Linear(fusion_module.output_size, 2)  # binary classification
+        self.classifier = nn.Linear(fusion_module.output_size, num_classes)  # binary classification
 
     def forward(self, inputs):
         chart_input, numerical_input = inputs
