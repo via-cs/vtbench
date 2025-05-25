@@ -5,6 +5,7 @@ from vtbench.train.trainer import train_model
 from vtbench.train.evaluate import evaluate_model
 from vtbench.data.loader import create_dataloaders, read_ucr
 import os
+import shutil
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -57,8 +58,12 @@ def main():
     # ====================
     #  Save results
     # ====================
-    save_dir = config['output']['dir']
+    dataset_name = config['dataset']['name']
+    yaml_name = os.path.splitext(os.path.basename(args.config))[0]
+
+    save_dir = os.path.join("results", dataset_name, yaml_name)
     os.makedirs(save_dir, exist_ok=True)
+    shutil.copy(args.config, os.path.join(save_dir, "config_used.yaml"))
 
     with open(os.path.join(save_dir, 'results.txt'), 'w') as f:
         for metric, value in results.items():

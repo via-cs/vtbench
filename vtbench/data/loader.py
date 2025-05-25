@@ -44,7 +44,7 @@ def stratified_val_test_split(dataset, labels, val_size=0.2, seed=42):
         return Subset(dataset, val_idx), Subset(dataset, test_idx)
 
 
-def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform):
+def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform, generate_images=False, overwrite_existing=False, global_indices=None):
     datasets = []
     for branch_cfg in chart_branches.values():
         ds = TimeSeriesImageDataset(
@@ -56,11 +56,15 @@ def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform):
             color_mode=branch_cfg.get('color_mode', 'color'),
             label_mode=branch_cfg.get('label_mode', 'with_label'),
             scatter_mode=branch_cfg.get('scatter_mode', 'plain'),
-            bar_mode=branch_cfg.get('bar_mode', 'fill'),
+            bar_mode=branch_cfg.get('bar_mode', 'border'),
             transform=transform,
+            generate_images=generate_images,
+            overwrite_existing=overwrite_existing,
+            global_indices=global_indices if global_indices is not None else list(range(len(y)))
         )
         datasets.append(ds)
     return datasets
+
 
 
 def create_dataloaders(config, seed=42):
@@ -73,13 +77,8 @@ def create_dataloaders(config, seed=42):
         transforms.Resize((64, 64)),
         transforms.ToTensor()
     ]
-    aug_transforms = [
-        transforms.RandomRotation(degrees=5),
-        transforms.RandomResizedCrop(size=(64, 64), scale=(0.9, 1.0)),
-        transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1)
-    ]
 
-    transform_train = transforms.Compose(base_transforms) 
+    transform_train = transforms.Compose(base_transforms)
     transform_eval = transforms.Compose(base_transforms)
 
     # Load raw data
@@ -90,41 +89,44 @@ def create_dataloaders(config, seed=42):
     print("Train labels:", Counter(y_train))
     print("Test labels:", Counter(y_test))
 
-    # Build test dataset to split into val + test subsets
-    temp_ds = TimeSeriesImageDataset(
-        dataset_name=dataset_name,
-        time_series_data=X_test,
-        labels=y_test,
-        split='test',
-        chart_type=list(chart_branches.values())[0]['chart_type'],
-        color_mode=list(chart_branches.values())[0].get('color_mode', 'color'),
-        label_mode=list(chart_branches.values())[0].get('label_mode', 'with_label'),
-        transform=transform_eval
-    )
+    temp_ds = torch.utils.data.TensorDataset(torch.tensor(X_test), torch.tensor(y_test))
     val_ds, test_ds = stratified_val_test_split(temp_ds, y_test, val_size=0.2, seed=seed)
 
-    # Create final datasets for chart input
+    val_indices = val_ds.indices
+    test_indices = test_ds.indices
+
+    # Build chart datasets
     chart_datasets = {
-        'train': build_chart_datasets(X_train, y_train, 'train', dataset_name, chart_branches, transform_train),
-        'val': [Subset(ds, val_ds.indices) for ds in build_chart_datasets(X_test, y_test, 'test', dataset_name, chart_branches, transform_eval)],
-        'test': [Subset(ds, test_ds.indices) for ds in build_chart_datasets(X_test, y_test, 'test', dataset_name, chart_branches, transform_eval)]
+        'train': build_chart_datasets(X_train, y_train, 'train', dataset_name, chart_branches, transform_train,
+                                      generate_images=config['image_generation'].get('generate_images', False),
+                                      overwrite_existing=config['image_generation'].get('overwrite_existing', False)),
+
+        'val': build_chart_datasets(X_test[val_indices], y_test[val_indices], 'test', dataset_name, chart_branches, transform_eval,
+                                    generate_images=config['image_generation'].get('generate_images', False),
+                                    overwrite_existing=config['image_generation'].get('overwrite_existing', False),
+                                    global_indices=val_indices),
+
+        'test': build_chart_datasets(X_test[test_indices], y_test[test_indices], 'test', dataset_name, chart_branches, transform_eval,
+                                     generate_images=config['image_generation'].get('generate_images', False),
+                                     overwrite_existing=config['image_generation'].get('overwrite_existing', False),
+                                     global_indices=test_indices)
     }
 
-    # Numerical datasets
     numerical_datasets = {
         'train': NumericalDataset(X_train, y_train),
-        'val': Subset(NumericalDataset(X_test, y_test), val_ds.indices),
-        'test': Subset(NumericalDataset(X_test, y_test), test_ds.indices)
+        'val': NumericalDataset(X_test[val_indices], y_test[val_indices]),
+        'test': NumericalDataset(X_test[test_indices], y_test[test_indices])
     }
 
+    # Create final loaders
     dataloaders = {}
     for split in ['train', 'val', 'test']:
         shuffle = (split == 'train')
-        chart_loaders = [DataLoader(ds, batch_size=batch_size, shuffle=shuffle, drop_last=True) for ds in chart_datasets[split]]
+        chart_loaders = [DataLoader(ds, batch_size=batch_size, shuffle=shuffle) for ds in chart_datasets[split]]
 
         numerical_loader = None
         if model_type in ['two_branch', 'multi_modal_chart_numerical'] and config['model'].get('numerical_branch', 'none') != 'none':
-            numerical_loader = DataLoader(numerical_datasets[split], batch_size=batch_size, shuffle=shuffle, drop_last=True)
+            numerical_loader = DataLoader(numerical_datasets[split], batch_size=batch_size, shuffle=shuffle)
 
         if model_type == 'single_modal_chart':
             chart_loaders = chart_loaders[0]

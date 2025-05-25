@@ -21,10 +21,8 @@ def create_area_chart(ts, chart_path, color_mode, label_mode):
 def create_bar_chart(ts, chart_path, bar_mode, color_mode, label_mode):
     plt.figure()
     color = 'blue' if color_mode == 'color' else 'black'
-    if bar_mode == 'fill':
-        plt.bar(range(len(ts)), ts, color=color, width=1.0)
-    elif bar_mode == 'border':
-        plt.bar(range(len(ts)), ts, color='none', edgecolor=color, width=1.0)
+    bar_mode == 'border'
+    plt.bar(range(len(ts)), ts, color='none', edgecolor=color, width=1.0)
     if label_mode == 'with_label':
         plt.title('Bar Chart')
     else:
@@ -68,9 +66,11 @@ class TimeSeriesImageDataset(Dataset):
     """
 
     def __init__(self, time_series_data, labels, dataset_name, split,
-                 chart_type='area', color_mode='color', label_mode='with_label',
-                 scatter_mode='plain', bar_mode='fill', transform=None):
-
+             chart_type='area', color_mode='color', label_mode='with_label',
+             scatter_mode='plain', bar_mode='border', transform=None,
+             generate_images=False, overwrite_existing=False,
+             global_indices=None):
+    
         self.time_series_data = time_series_data
         self.labels = labels
         self.dataset_name = dataset_name
@@ -81,17 +81,22 @@ class TimeSeriesImageDataset(Dataset):
         self.scatter_mode = scatter_mode
         self.bar_mode = bar_mode
         self.transform = transform
+        self.generate_images = generate_images
+        self.overwrite_existing = overwrite_existing
+        self.global_indices = global_indices if global_indices is not None else list(range(len(labels)))
 
-        # All images stored under chart_images/
         self.base_dir = f"chart_images/{self.dataset_name}_images"
         self._setup_chart_dir()
-        self._generate_charts_if_needed()
+        if self.generate_images:
+            self._generate_charts_if_needed()
+
 
     def _setup_chart_dir(self):
         if self.chart_type == 'area':
             self.chart_dir = f"{self.base_dir}/area_charts_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'bar':
-            self.chart_dir = f"{self.base_dir}/bar_charts_{self.bar_mode}_{self.color_mode}_{self.label_mode}/{self.split}"
+            bar_mode = self.bar_mode or 'border'
+            self.chart_dir = f"{self.base_dir}/bar_charts_{bar_mode}_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'line':
             self.chart_dir = f"{self.base_dir}/line_charts_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'scatter':
@@ -102,8 +107,8 @@ class TimeSeriesImageDataset(Dataset):
         os.makedirs(self.chart_dir, exist_ok=True)
 
     def _generate_charts_if_needed(self):
-        for idx, ts in enumerate(self.time_series_data):
-            chart_path = os.path.join(self.chart_dir, self._get_image_filename(idx))
+        for local_idx, ts in enumerate(self.time_series_data):
+            chart_path = os.path.join(self.chart_dir, self._get_image_filename(local_idx))  # NOT global_idx
             if not os.path.exists(chart_path):
                 if self.chart_type == 'area':
                     create_area_chart(ts, chart_path, self.color_mode, self.label_mode)
@@ -114,7 +119,10 @@ class TimeSeriesImageDataset(Dataset):
                 elif self.chart_type == 'scatter':
                     create_scatter_chart(ts, chart_path, self.scatter_mode, self.color_mode, self.label_mode)
 
+
+
     def _get_image_filename(self, idx):
+        actual_idx = self.global_indices[idx] if self.global_indices is not None else idx
         prefix = {
             'area': 'area_chart',
             'bar': 'bar_chart',
@@ -123,11 +131,13 @@ class TimeSeriesImageDataset(Dataset):
         }[self.chart_type]
 
         if self.chart_type == 'bar':
-            return f"{prefix}_{self.bar_mode}_{self.color_mode}_{self.label_mode}_{idx}.png"
+            return f"{prefix}_{self.bar_mode}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
         elif self.chart_type == 'scatter':
-            return f"{prefix}_{self.scatter_mode}_{self.color_mode}_{self.label_mode}_{idx}.png"
+            return f"{prefix}_{self.scatter_mode}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
         else:
-            return f"{prefix}_{self.color_mode}_{self.label_mode}_{idx}.png"
+            return f"{prefix}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
+
+
 
     def __len__(self):
         return len(self.labels)

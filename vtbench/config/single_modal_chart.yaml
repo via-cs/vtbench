@@ -4,8 +4,8 @@ dataset:
   test_path: data/Strawberry/Strawberry_TEST.ts
 
 image_generation:
-  generate_images: false
-  overwrite_existing: false
+  generate_images: true
+  overwrite_existing: true
 
 model:
   type: single_modal_chart # single_modal_chart
@@ -14,12 +14,12 @@ model:
 
 chart_branches:
   branch_1:
-    chart_type: line
-    color_mode: color
+    chart_type: scatter
+    color_mode: monochrome
     label_mode: without_label
 
 training:
-  batch_size: 64
+  batch_size: 32
   epochs: 100
   learning_rate: 0.0005
 
