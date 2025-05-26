@@ -26,38 +26,36 @@ def main():
     model = train_model(config)
 
     # ====================
-    #  Prepare test loaders
+    #  Prepare test loaders and run evaluation
     # ====================
     all_datasets = create_dataloaders(config)
     test_chart = all_datasets['test']['chart']
     test_num = all_datasets['test']['numerical']
 
-    if config['model']['type'] == 'single_modal_chart':
-        test_loader = test_chart  # already a single DataLoader
-        test_num_loader = None
-
-    elif config['model']['type'] in ['two_branch', 'multi_modal_chart']:
-        test_loader = test_chart  # list of loaders
-        test_num_loader = test_num  # could be None
-    else:
-        raise ValueError(f"Unsupported model type: {config['model']['type']}")
-
-
-    # ====================
-    #  Evaluation
-    # ====================
     print("\n=== Running Evaluation ===")
 
-    if config['model']['type'] in ['single_modal_chart', 'multi_modal_chart']:
-        results = evaluate_model(model, test_loader)
-    elif config['model']['type'] in ['two_branch', 'multi_modal_chart_numerical']:
-        results = evaluate_model(model, test_loader, test_num_loader)
+    # Use the dispatcher function with explicit model type
+    model_type = config['model']['type']
+    if model_type == 'single_modal_chart':
+        results = evaluate_model(model, test_chart, None, 'single_chart')
+    elif model_type == 'two_branch':
+        results = evaluate_model(model, test_chart, test_num, 'two_branch')
+    elif model_type == 'multi_modal_chart':
+        results = evaluate_model(model, test_chart, test_num, 'multi_chart')
     else:
-        raise ValueError(f"Unsupported model type: {config['model']['type']}")
+        raise ValueError(f"Unsupported model type: {model_type}")
 
     # ====================
-    #  Save results
+    #  Print and save results
     # ====================
+    print("\n=== Evaluation Results ===")
+    for metric, value in results.items():
+        if isinstance(value, float):
+            print(f"{metric.capitalize()}: {value:.4f}")
+        else:
+            print(f"{metric.capitalize()}: {value}")
+
+    # Save results
     dataset_name = config['dataset']['name']
     yaml_name = os.path.splitext(os.path.basename(args.config))[0]
 

@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from collections import Counter
 from vtbench.data.loader import create_dataloaders
 from vtbench.models.numerical.fcn import NumericalFCN
 from vtbench.models.numerical.transformer import NumericalTransformer
@@ -53,13 +54,22 @@ def train_single_chart_model(config):
     return train_standard_model(model, train_loader, val_loader, test_loader, config)
 
 # ========================
-# Two-branch model
+# Two-branch model (NEW SEPARATE FUNCTION)
 # ========================
 
 def train_two_branch_model(config):
     print("Training two-branch model: Chart + Numerical")
     loaders = create_dataloaders(config)
-    chart_loader = loaders['train']['chart']
+    
+    # Handle case where chart might be a list of loaders
+    chart_data = loaders['train']['chart']
+    if isinstance(chart_data, list):
+        chart_loader = chart_data[0]  # Take the first (and should be only) chart loader
+        test_chart_loader = loaders['test']['chart'][0]
+    else:
+        chart_loader = chart_data
+        test_chart_loader = loaders['test']['chart']
+    
     num_loader = loaders['train']['numerical']
 
     feature_size = 64 if config['model']['chart_model'] == 'simplecnn' else 256
@@ -71,15 +81,122 @@ def train_two_branch_model(config):
     fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=2)
     model = TwoBranchModel(chart_branch, num_branch, fusion).to(device)
 
-    return train_multimodal_model(
+    return train_two_branch_multimodal(
         model,
-        [chart_loader], num_loader,
-        [loaders['test']['chart']], loaders['test']['numerical'],
+        chart_loader, num_loader,
+        test_chart_loader, loaders['test']['numerical'],
         config
     )
 
+def train_two_branch_multimodal(model, chart_loader, num_loader, test_chart_loader, test_num_loader, config):
+    """Training function specifically for TwoBranchModel (chart + numerical)"""
+    optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'], weight_decay=0.01)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
+    criterion = nn.CrossEntropyLoss()
+
+    patience = 10
+    trigger_times = 0
+    best_val_acc = 0
+
+    for epoch in range(config['training']['epochs']):
+        # === Training ===
+        model.train()
+        train_correct, train_total, train_loss = 0, 0, 0
+
+        # Create iterators
+        chart_iter = iter(chart_loader)
+        num_iter = iter(num_loader)
+        epoch_length = min(len(chart_loader), len(num_loader))
+
+        for batch_idx in range(epoch_length):
+            optimizer.zero_grad()
+            
+            try:
+                # Get batches
+                chart_batch = next(chart_iter)
+                num_batch = next(num_iter)
+                
+                # Unpack and move to device
+                chart_imgs, chart_labels = chart_batch
+                chart_imgs = chart_imgs.to(device)
+                chart_labels = chart_labels.to(device)
+                
+                num_features, _ = num_batch
+                num_features = num_features.to(device)
+                
+                # TwoBranchModel expects (chart_tensor, num_tensor)
+                outputs = model((chart_imgs, num_features))
+                labels = chart_labels
+                
+            except StopIteration:
+                break
+                
+            # Backpropagation
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            train_correct += (outputs.argmax(dim=1) == labels).sum().item()
+            train_total += labels.size(0)
+
+        train_acc = 100 * train_correct / train_total
+
+        # === Validation ===
+        model.eval()
+        val_correct, val_total, val_loss = 0, 0, 0
+        
+        val_chart_iter = iter(test_chart_loader)
+        val_num_iter = iter(test_num_loader)
+        val_length = min(len(test_chart_loader), len(test_num_loader))
+        
+        with torch.no_grad():
+            for batch_idx in range(val_length):
+                try:
+                    # Get validation batches
+                    val_chart_batch = next(val_chart_iter)
+                    val_num_batch = next(val_num_iter)
+                    
+                    # Unpack and move to device
+                    val_chart_imgs, val_chart_labels = val_chart_batch
+                    val_chart_imgs = val_chart_imgs.to(device)
+                    val_chart_labels = val_chart_labels.to(device)
+                    
+                    val_num_features, _ = val_num_batch
+                    val_num_features = val_num_features.to(device)
+                    
+                    # Forward pass
+                    val_outputs = model((val_chart_imgs, val_num_features))
+                    val_labels = val_chart_labels
+                    
+                    loss = criterion(val_outputs, val_labels)
+                    val_loss += loss.item()
+                    val_correct += (val_outputs.argmax(dim=1) == val_labels).sum().item()
+                    val_total += val_labels.size(0)
+                    
+                except StopIteration:
+                    break
+        
+        val_acc = 100 * val_correct / val_total if val_total > 0 else 0
+
+        print(f"[Epoch {epoch + 1}] Train Loss: {train_loss / epoch_length:.4f}, Train Acc: {train_acc:.2f}%, "
+              f"Val Loss: {val_loss / val_length:.4f}, Val Acc: {val_acc:.2f}%")
+        
+        scheduler.step(val_loss)
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            trigger_times = 0
+        else:
+            trigger_times += 1
+            if trigger_times >= patience:
+                print("Early stopping.")
+                break
+
+    return model
+
 # ========================
-# Multi-chart model (with or without numerical)
+# Multi-chart model (NEW SEPARATE FUNCTION)
 # ========================
 
 def train_multi_chart_model(config):
@@ -91,26 +208,177 @@ def train_multi_chart_model(config):
 
     train_charts = loaders['train']['chart']
     test_charts = loaders['test']['chart']
-    train_numerical = loaders['train']['numerical']
-    test_numerical = loaders['test']['numerical']
+    
+    # Check if numerical branch is specified and data is available
+    has_numerical = config['model']['numerical_branch'] != 'none'
+    train_numerical = loaders['train']['numerical'] if has_numerical else None
+    test_numerical = loaders['test']['numerical'] if has_numerical else None
 
     branches = [get_chart_model(chart_model, 3, None) for _ in train_charts]
 
-    if config['model']['numerical_branch'] != 'none':
-        input_dim = next(iter(train_numerical))[0].shape[1]
+    if has_numerical and train_numerical is not None:
+        # Get input dimension from numerical data
+        try:
+            sample_batch = next(iter(train_numerical))
+            input_dim = sample_batch[0].shape[1]
+        except (StopIteration, IndexError, AttributeError) as e:
+            raise ValueError(f"Could not determine input dimension from numerical data: {e}")
+            
         num_branch = get_numerical_model(config, input_dim, feature_size)
         fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=len(branches) + 1)
         model = MultiChartNumericalModel(branches, num_branch, fusion).to(device)
+        
+        print(f"Created MultiChartNumericalModel with {len(branches)} chart branches + numerical branch")
     else:
         fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=len(branches))
         model = MultiChartModel(branches, fusion).to(device)
+        train_numerical = None
+        test_numerical = None
+        
+        print(f"Created MultiChartModel with {len(branches)} chart branches (no numerical)")
 
-    return train_multimodal_model(
+    return train_multichart_multimodal(
         model,
         train_charts, train_numerical,
         test_charts, test_numerical,
         config
     )
+
+
+def train_multichart_multimodal(model, chart_loaders, num_loader, test_chart_loaders, test_num_loader, config):
+    """Training function specifically for MultiChartModel (multiple charts + optional numerical)"""
+    optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'], weight_decay=0.01)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
+    criterion = nn.CrossEntropyLoss()
+
+    patience = 10
+    trigger_times = 0
+    best_val_acc = 0
+
+    for epoch in range(config['training']['epochs']):
+        # === Training ===
+        model.train()
+        train_correct, train_total, train_loss = 0, 0, 0
+
+        # Create iterators for all chart loaders
+        chart_iters = [iter(loader) for loader in chart_loaders]
+        num_iter = iter(num_loader) if num_loader else None
+        
+        # Get epoch length
+        epoch_length = len(chart_loaders[0])
+        if num_loader:
+            epoch_length = min(epoch_length, len(num_loader))
+
+        for batch_idx in range(epoch_length):
+            optimizer.zero_grad()
+            
+            try:
+                # Get batches from all chart loaders
+                chart_batches = [next(chart_iter) for chart_iter in chart_iters]
+                
+                # Process chart data
+                chart_imgs = []
+                labels = None
+                for chart_batch in chart_batches:
+                    imgs, lbls = chart_batch
+                    imgs = imgs.to(device)
+                    lbls = lbls.to(device)
+                    chart_imgs.append(imgs)
+                    if labels is None:
+                        labels = lbls  # Use labels from first chart
+                
+                if num_loader:
+                    # Get numerical batch
+                    num_batch = next(num_iter)
+                    num_features, _ = num_batch
+                    num_features = num_features.to(device)
+                    
+                    # MultiChartModel with numerical expects ([chart_tensors], num_tensor)
+                    outputs = model((chart_imgs, num_features))
+                else:
+                    # MultiChartModel without numerical expects [chart_tensors]
+                    outputs = model(chart_imgs)
+                
+            except StopIteration:
+                break
+                
+            # Backpropagation
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            train_correct += (outputs.argmax(dim=1) == labels).sum().item()
+            train_total += labels.size(0)
+
+        train_acc = 100 * train_correct / train_total
+
+        # === Validation ===
+        model.eval()
+        val_correct, val_total, val_loss = 0, 0, 0
+        
+        # Create validation iterators
+        val_chart_iters = [iter(loader) for loader in test_chart_loaders]
+        val_num_iter = iter(test_num_loader) if test_num_loader else None
+        
+        val_length = len(test_chart_loaders[0])
+        if test_num_loader:
+            val_length = min(val_length, len(test_num_loader))
+        
+        with torch.no_grad():
+            for batch_idx in range(val_length):
+                try:
+                    # Get validation batches from all chart loaders
+                    val_chart_batches = [next(val_chart_iter) for val_chart_iter in val_chart_iters]
+                    
+                    # Process validation chart data
+                    val_chart_imgs = []
+                    val_labels = None
+                    for val_chart_batch in val_chart_batches:
+                        imgs, lbls = val_chart_batch
+                        imgs = imgs.to(device)
+                        lbls = lbls.to(device)
+                        val_chart_imgs.append(imgs)
+                        if val_labels is None:
+                            val_labels = lbls  # Use labels from first chart
+                    
+                    if test_num_loader:
+                        # Get validation numerical batch
+                        val_num_batch = next(val_num_iter)
+                        val_num_features, _ = val_num_batch
+                        val_num_features = val_num_features.to(device)
+                        
+                        # Forward pass
+                        val_outputs = model((val_chart_imgs, val_num_features))
+                    else:
+                        # Forward pass without numerical
+                        val_outputs = model(val_chart_imgs)
+                    
+                    loss = criterion(val_outputs, val_labels)
+                    val_loss += loss.item()
+                    val_correct += (val_outputs.argmax(dim=1) == val_labels).sum().item()
+                    val_total += val_labels.size(0)
+                    
+                except StopIteration:
+                    break
+        
+        val_acc = 100 * val_correct / val_total if val_total > 0 else 0
+
+        print(f"[Epoch {epoch + 1}] Train Loss: {train_loss / epoch_length:.4f}, Train Acc: {train_acc:.2f}%, "
+              f"Val Loss: {val_loss / val_length:.4f}, Val Acc: {val_acc:.2f}%")
+        
+        scheduler.step(val_loss)
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            trigger_times = 0
+        else:
+            trigger_times += 1
+            if trigger_times >= patience:
+                print("Early stopping.")
+                break
+
+    return model
 
 # ========================
 # Numerical model factory
@@ -187,64 +455,6 @@ def train_standard_model(model, train_loader, val_loader, test_loader, config):
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
-            trigger_times = 0
-        else:
-            trigger_times += 1
-            if trigger_times >= patience:
-                print("Early stopping.")
-                break
-
-    return model
-
-# ========================
-# Multimodal trainer (shared)
-# ========================
-
-def train_multimodal_model(model, train_charts, train_numerical, test_charts, test_numerical, config):
-    optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'], weight_decay=0.01)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
-    criterion = nn.CrossEntropyLoss()
-
-    patience = 10
-    trigger_times = 0
-    best_val_acc = 0
-
-    def move(x): return [i.to(device) if isinstance(i, torch.Tensor) else i for i in x]
-
-    for epoch in range(config['training']['epochs']):
-        model.train()
-        correct, total, running_loss = 0, 0, 0
-
-        iterator = zip(zip(*train_charts), train_numerical) if train_numerical else zip(*train_charts)
-
-        for batch in iterator:
-            if train_numerical:
-                chart_batches, num_input = batch
-                chart_batches = move(chart_batches)
-                num_features, labels = move(num_input)
-                chart_imgs = [img for img, _ in chart_batches]
-                outputs = model((chart_imgs, num_features))
-            else:
-                chart_batches = move(batch)
-                chart_imgs = [img for img, _ in chart_batches]
-                labels = chart_batches[0][1]
-                outputs = model(chart_imgs)
-
-            loss = criterion(outputs, labels)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-            correct += (outputs.argmax(dim=1) == labels).sum().item()
-            total += labels.size(0)
-
-        acc = 100 * correct / total
-        print(f"[Epoch {epoch+1}] Loss: {running_loss/len(train_charts[0]):.4f}, Accuracy: {acc:.2f}%")
-        scheduler.step(running_loss)
-
-        if acc > best_val_acc:
-            best_val_acc = acc
             trigger_times = 0
         else:
             trigger_times += 1

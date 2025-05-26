@@ -125,7 +125,7 @@ def create_dataloaders(config, seed=42):
         chart_loaders = [DataLoader(ds, batch_size=batch_size, shuffle=shuffle) for ds in chart_datasets[split]]
 
         numerical_loader = None
-        if model_type in ['two_branch', 'multi_modal_chart_numerical'] and config['model'].get('numerical_branch', 'none') != 'none':
+        if model_type in ['two_branch', 'multi_modal_chart'] and config['model'].get('numerical_branch', 'none') != 'none':
             numerical_loader = DataLoader(numerical_datasets[split], batch_size=batch_size, shuffle=shuffle)
 
         if model_type == 'single_modal_chart':

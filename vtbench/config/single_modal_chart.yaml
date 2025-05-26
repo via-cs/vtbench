@@ -14,9 +14,9 @@ model:
 
 chart_branches:
   branch_1:
-    chart_type: scatter
-    color_mode: monochrome
-    label_mode: without_label
+    chart_type: area
+    color_mode: color
+    label_mode: with_label
 
 training:
   batch_size: 32
