@@ -3,45 +3,49 @@ from imblearn.over_sampling import SMOTE
 import torch
 from collections import Counter
 
+import numpy as np
+import torch
+from collections import Counter
+
+import numpy as np
+from collections import Counter
+
 def read_ucr(filename):
     data = []
     labels = []
-    label_set = set()  
+    raw_labels = []
 
+    # First pass to collect all raw class names
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
             if len(parts) < 2:
                 continue
-            label = int(parts[-1].split(':')[-1])
-            label_set.add(label)
+            label_str = parts[-1].split(':')[-1].strip()
+            raw_labels.append(label_str)
 
- 
-    if label_set == {0, 1}: 
-        def normalize(label):
-            return label
-    elif label_set == {1, 2}:  
-        def normalize(label):
-            return 0 if label == 1 else 1
-    elif label_set == {-1, 1}:  
-        def normalize(label):
-            return 0 if label == -1 else 1
-    else:
-        raise ValueError(f"Unexpected label set: {label_set}")
+    # Create mapping based on alphabetical order
+    unique_labels = sorted(set(raw_labels))
+    label_map = {label: idx for idx, label in enumerate(unique_labels)}
+    normalize = lambda x: label_map[x]
 
+    # Second pass to convert data and labels
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
             if len(parts) < 2:
                 continue
             features = [float(f) for f in parts[:-1]]
-            label = int(parts[-1].split(':')[-1])
-            normalized_label = normalize(label)
-            labels.append(normalized_label)
+            label_str = parts[-1].split(':')[-1].strip()
+            labels.append(normalize(label_str))
             data.append(features)
 
-    print("Data loaded")
-    return np.array(data), np.array(labels)
+    data = np.array(data)
+    labels = np.array(labels)
+
+    print(f"{filename} loaded. Total samples: {len(labels)}, Class distribution: {Counter(labels)}")
+    return data, labels, label_map
+
 
 
 def read_ecg5000(filename):
@@ -96,10 +100,7 @@ def to_torch_tensors(x_train, y_train, x_test, y_test):
     y_test = torch.tensor(y_test, dtype=torch.long)
     return X_train, y_train, X_test, y_test
 
-def apply_smote(x_train, y_train, strategy):
-    smote = SMOTE(sampling_strategy=strategy, k_neighbors=1)
-    x_train_resampled, y_train_resampled = smote.fit_resample(x_train, y_train)
-    return x_train_resampled, y_train_resampled
+
 
 
 

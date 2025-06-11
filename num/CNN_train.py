@@ -67,7 +67,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, train_file, dataset_nam
     color_modes = ['color', 'monochrome']
     label_modes = ['with_label', 'without_label']
     scatter_modes = ['plain']
-    bar_modes = ['fill', 'border']
+    bar_modes = ['border']
 
     dataloaders = {}
     

@@ -7,41 +7,37 @@ import numpy as np
 import torch
 from collections import Counter
 
+import numpy as np
+from collections import Counter
+
 def read_ucr(filename):
     data = []
     labels = []
     raw_labels = []
 
+    # First pass to collect all raw class names
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
             if len(parts) < 2:
                 continue
-            label = int(parts[-1].split(':')[-1])
-            raw_labels.append(label)
+            label_str = parts[-1].split(':')[-1].strip()
+            raw_labels.append(label_str)
 
-    label_set = set(raw_labels)
+    # Create mapping based on alphabetical order
+    unique_labels = sorted(set(raw_labels))
+    label_map = {label: idx for idx, label in enumerate(unique_labels)}
+    normalize = lambda x: label_map[x]
 
-   
-    if label_set == {0, 1}:
-        normalize = lambda x: x
-    elif label_set == {1, 2}:
-        normalize = lambda x: 0 if x == 1 else 1
-    elif label_set == {-1, 1}:
-        normalize = lambda x: 0 if x == -1 else 1
-    else:
-       
-        label_map = {label: idx for idx, label in enumerate(sorted(label_set))}
-        normalize = lambda x: label_map[x]
-
+    # Second pass to convert data and labels
     with open(filename, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
             if len(parts) < 2:
                 continue
             features = [float(f) for f in parts[:-1]]
-            label = int(parts[-1].split(':')[-1])
-            labels.append(normalize(label))
+            label_str = parts[-1].split(':')[-1].strip()
+            labels.append(normalize(label_str))
             data.append(features)
 
     data = np.array(data)
@@ -49,6 +45,7 @@ def read_ucr(filename):
 
     print(f"{filename} loaded. Total samples: {len(labels)}, Class distribution: {Counter(labels)}")
     return data, labels, label_map
+
 
 
 def read_ecg5000(filename):

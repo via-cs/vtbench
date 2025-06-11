@@ -7,6 +7,7 @@ from collections import Counter
 from torch.utils.data import DataLoader, random_split
 from torchvision import transforms
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import label_binarize
 from num.CNN_utils import TimeSeriesImageDatasetMC
 from sklearn.metrics import precision_score, recall_score, roc_auc_score, f1_score, confusion_matrix, precision_recall_curve, balanced_accuracy_score
 from imblearn.metrics import specificity_score
@@ -66,7 +67,7 @@ def create_dataloaders(X_train, y_train, X_test, y_test, train_file, dataset_nam
     color_modes = ['color', 'monochrome']
     label_modes = ['with_label', 'without_label']
     scatter_modes = ['plain']
-    bar_modes = ['fill', 'border']
+    bar_modes = ['border']
 
     dataloaders = {}
     
@@ -247,17 +248,33 @@ def evaluate_model(model, test_loader):
             correct += (predicted == labels).sum().item()
             y_true.extend(labels.cpu().numpy())
             y_pred.extend(predicted.cpu().numpy())
-            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy()[:, 1])  # Probability for the positive class
+            y_probs.extend(torch.softmax(outputs, dim=1).cpu().numpy())
+
+    y_true = np.array(y_true)
+    y_pred = np.array(y_pred)
+    y_probs = np.array(y_probs)
 
     test_loss /= len(test_loader)
     test_accuracy = 100 * correct / total
-    recall = recall_score(y_true, y_pred)
-    precision = precision_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred)
-    auc = roc_auc_score(y_true, y_probs)  # AUC for binary classification
-    balanced_acc = balanced_accuracy_score(y_true, y_pred)
-    specificity = specificity_score(y_true, y_pred)
+    num_classes = len(np.unique(y_true))
 
+    if num_classes == 2:
+        # For binary classification
+        recall = recall_score(y_true, y_pred, average='binary')
+        precision = precision_score(y_true, y_pred, average='binary')
+        f1 = f1_score(y_true, y_pred, average='binary')
+        auc = roc_auc_score(y_true, y_probs[:, 1])
+        specificity = specificity_score(y_true, y_pred, average='binary')
+    else:
+        # For multiclass classification
+        recall = recall_score(y_true, y_pred, average='macro')
+        precision = precision_score(y_true, y_pred, average='macro')
+        f1 = f1_score(y_true, y_pred, average='macro')
+        y_true_bin = label_binarize(y_true, classes=np.arange(num_classes))
+        auc = roc_auc_score(y_true_bin, y_probs, average='macro', multi_class='ovr')
+        specificity = specificity_score(y_true, y_pred, average='macro')
+
+    balanced_acc = balanced_accuracy_score(y_true, y_pred)
     conf_matrix = confusion_matrix(y_true, y_pred)
 
     print(f'Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%')

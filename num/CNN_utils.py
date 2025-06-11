@@ -25,22 +25,14 @@ def create_area_chart_mc(ts, chart_path, color_mode, label_mode):
 
 def create_bar_chart_mc(ts, chart_path, bar_mode, color_mode, label_mode):
     plt.figure()
-    if color_mode == 'color':
-        color = 'blue'
-    else:
-        color = 'black'
-
-    if bar_mode == 'fill':
-        plt.bar(range(len(ts)), ts, color=color, width=1.0)
-    elif bar_mode == 'border':
-        plt.bar(range(len(ts)), ts, color='none', edgecolor=color, width=1.0)
-
+    color = 'blue' if color_mode == 'color' else 'black'
+    bar_mode == 'border'
+    plt.bar(range(len(ts)), ts, color='none', edgecolor=color, width=1.0)
     if label_mode == 'with_label':
         plt.title('Bar Chart')
     else:
         plt.axis('off')
-
-    plt.savefig(chart_path)
+    plt.savefig(chart_path, bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def create_line_chart_mc(ts, chart_path, color_mode, label_mode):
@@ -59,11 +51,8 @@ def create_line_chart_mc(ts, chart_path, color_mode, label_mode):
 def create_scatter_chart_mc(ts, chart_path, scatter_mode, color_mode, label_mode):
     plt.figure()
     color = 'blue' if color_mode == 'color' else 'black'
-    if scatter_mode == 'plain':
-        plt.scatter(range(len(ts)), ts, color=color)
-    elif scatter_mode == 'join':
-        plt.plot(ts, color='skyblue')
-        plt.scatter(range(len(ts)), ts, color=color)
+    scatter_mode == 'plain'
+    plt.scatter(range(len(ts)), ts, color=color)
 
     if label_mode == 'with_label':
         plt.title('Scatter Chart')
@@ -109,7 +98,7 @@ class NumericalDataset(Dataset):
         return features, label
 
 class TimeSeriesImageDatasetMC(Dataset):
-    def __init__(self, dataset_name, time_series_data, labels, split, config = None, transform=None, chart_type='area', label_mode='with_label', scatter_mode='join', bar_mode='fill', color_mode='color', augment = False):
+    def __init__(self, dataset_name, time_series_data, labels, split, config = None, transform=None, chart_type='area', label_mode='with_label', scatter_mode='plain', bar_mode='border', color_mode='color', augment = False):
         self.dataset_name = dataset_name
         self.time_series_data = time_series_data 
         self.labels = labels
