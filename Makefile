@@ -31,7 +31,7 @@ lint:
 
 .PHONY: bump
 bump: 
-	bump2verison patch
+	bump2version patch
 
 # DOCS
 
@@ -39,7 +39,7 @@ bump:
 docs: 
 	sphinx-build -b html docs/ docs/_build/html
 
-.PHONY: view_docs
+.PHONY: view-docs
 view-docs: docs
 	 python -c "import webbrowser, os; webbrowser.open('file://' + os.path.abspath('docs/_build/html/index.html'))"
 
@@ -48,11 +48,11 @@ view-docs: docs
 .PHONY: dist
 dist: clean
 	python setup.py sdist
-	python steup.py bdist_wheel
+	python setup.py bdist_wheel
 
 .PHONY: publish-test
 publish-test: dist
-	twine-upload --repository-url https://test.pypi.org/legacy/ dist/*
+	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
 .PHONY: publish 
 publish: dist
