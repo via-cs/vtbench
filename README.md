@@ -31,11 +31,11 @@ VTBench is a Python package for time-series classification using visual chart re
 
 Install the package in editable mode with modern packaging:
 
-`pip install -e .`
+### `pip install -e .`
 
 Then run your experiment using:
 
-`vtbench --config vtbench/config/example_config.yaml`
+### `vtbench --config vtbench/config/example_config.yaml`
 
 This command will:
 
