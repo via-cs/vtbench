@@ -11,7 +11,7 @@ model:
   type: multi_modal_chart
   chart_model: deepcnn # simplecnn / deepcnn
   numerical_branch: fcn # none / fcn / transformer / oscnn
-  fusion: concat # concat / weighted_sum
+  fusion: weighted_sum # concat / weighted_sum
   num_classes: 2
 
 transformer_config: # Only used if numerical_branch == transformer

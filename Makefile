@@ -4,7 +4,7 @@
 
 .PHONY: clean
 clean:
-	-rm -rf build dist .pytest_cache .tox *.egg-info __pycache__ vtbench/__pycache__ tests/__pycache__
+	-rm -rf build dist .pytest_cache .tox *.egg-info __pycache__ vtbench/__pycache__ tests/__pycache__ .ipynb_checkpoints
 
 .PHONY: install 
 install: clean

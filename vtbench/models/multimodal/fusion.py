@@ -11,16 +11,30 @@ class FusionModule(nn.Module):
 
         if mode == 'concat':
             self.output_size = feature_size * num_branches
+
         elif mode == 'weighted_sum':
-            self.weights = nn.Parameter(torch.ones(num_branches))
+            # lightweight attention: learnable vectors 
+            self.attn_vectors = nn.Parameter(torch.randn(num_branches, feature_size))
             self.output_size = feature_size
+
         else:
             raise ValueError(f"Unsupported fusion mode: {mode}")
 
     def forward(self, features):
+        """
+        features: list of [B, d] tensors (one per branch)
+        """
         if self.mode == 'concat':
             return torch.cat(features, dim=1)
+
         elif self.mode == 'weighted_sum':
-            w = F.softmax(self.weights, dim=0)
-            weighted = sum(w[i] * features[i] for i in range(self.num_branches))
+            # compute per-sample attention scores
+            attn_logits = [
+                torch.sum(features[i] * self.attn_vectors[i], dim=1, keepdim=True)
+                for i in range(self.num_branches)
+            ]
+            attn_logits = torch.cat(attn_logits, dim=1)        
+            attn_weights = F.softmax(attn_logits, dim=1)      
+            weighted = sum(attn_weights[:, i].unsqueeze(1) * features[i]
+                           for i in range(self.num_branches))
             return weighted
