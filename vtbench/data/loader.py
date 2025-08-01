@@ -24,7 +24,10 @@ def read_ucr(filename):
     elif label_set == {-1, 1}:
         normalize = lambda l: 0 if l == -1 else 1
     else:
-        raise ValueError(f"Unexpected label set: {label_set}")
+        # For multi-class datasets, convert labels to 0-based indexing
+        sorted_labels = sorted(label_set)
+        label_map = {label: idx for idx, label in enumerate(sorted_labels)}
+        normalize = lambda l: label_map[l]
 
     with open(filename, 'r') as file:
         for line in file:
