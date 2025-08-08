@@ -1,7 +1,7 @@
 dataset:
-  name: Strawberry
-  train_path: data/Strawberry/Strawberry_TRAIN.ts
-  test_path: data/Strawberry/Strawberry_TEST.ts
+  name: ECG5000
+  train_path: data/ECG5000/ECG5000_TRAIN.ts
+  test_path: data/ECG5000/ECG5000_TEST.ts
 
 image_generation:
   generate_images: true
