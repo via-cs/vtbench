@@ -1,1 +1,7 @@
+chart_images
+__pycache___
+.ipynb_checkpoints
+.DS_Store
+*.egg-info
+vtbench/__pycache___
 data
