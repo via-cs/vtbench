@@ -25,13 +25,6 @@ git clone https://github.com/<your-username>/vtbench.git
 cd vtbench
 pip install -e .
 ```
-This command will:
-
-- Parse the YAML config
-- Generate required chart images from the time-series data
-- Load data and initialize the appropriate model
-- Train and evaluate the model
-- Save results to the results/ folder
 
 ## Configuration Files
 
@@ -40,6 +33,15 @@ VTBench is driven by YAML configuration files that define model type, data paths
 ```bash
 vtbench --config vtbench/config/<config_file>.yaml
 ```
+
+This command will:
+
+- Parse the YAML config
+- Generate required chart images from the time-series data
+- Load data and initialize the appropriate model
+- Train and evaluate the model
+- Save results to the results/ folder
+
 
 ## Available Configs
 
@@ -59,3 +61,4 @@ VTBench is designed for:
 - Ablation studies on chart types, fusion strategies, and architectures
 - Reproducible research via config-driven design
 - Extending to new encoders (ResNet, ViT, LSTM, TCN, etc.) and modalities (spectrograms, text metadata, etc.)
+
