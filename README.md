@@ -46,13 +46,13 @@ This command will:
 ## Available Configs
 
 ####  `single_modal_chart.yaml`
-Runs a single chart-type image model (e.g., line, bar, etc.) using a CNN. Useful for testing how well visual representations alone perform on classification tasks.
+Runs a single chart-type image model (e.g., line, bar, etc.) using a vision encoder. Useful for testing how well visual representations alone perform on classification tasks.
 
 #### `two_branch.yaml`
 Combines chart image input with raw numerical data in a two-branch architecture. Helps compare unimodal vs. multimodal performance with a simple fusion strategy.
 
 ####  `multi_modal_chart.yaml`
-Uses multiple chart types (e.g., line, bar, scatter, area) in parallel branches. Demonstrates how different visual representations can complement each other in a multimodal structure.
+Uses multiple chart types (e.g., line, bar, scatter, area) in parallel branches. Demonstrates how different visual representations can complement each other in a multimodal structure. You could also choose to include the raw numerical data as another branch to investigate if all chart modalities complement raw numerical data upon fusion. 
 
 
 ## Use
@@ -61,4 +61,5 @@ VTBench is designed for:
 - Ablation studies on chart types, fusion strategies, and architectures
 - Reproducible research via config-driven design
 - Extending to new encoders (ResNet, ViT, LSTM, TCN, etc.) and modalities (spectrograms, text metadata, etc.)
+
 
