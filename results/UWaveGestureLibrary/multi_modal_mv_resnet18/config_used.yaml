@@ -1,0 +1,56 @@
+dataset:
+  name: UWaveGestureLibrary
+  format: uea
+  train_path: data/UWaveGestureLibrary/UWaveGestureLibrary_TRAIN.ts
+  test_path:  data/UWaveGestureLibrary/UWaveGestureLibrary_TEST.ts
+
+image_generation:
+  generate_images: true
+  overwrite_existing: true
+  preserve_multivariate_size: true
+
+model:
+  type: multi_modal_chart
+  chart_model: deepcnn
+  numerical_branch: transformer
+  fusion: concat          # simple & fast
+  pretrained: true
+  num_classes: 8  # adjust per dataset
+
+transformer_config:
+  hidden_dim: 128
+  num_heads: 4
+  num_layers: 2
+  dropout: 0.1
+  output_dim: 256         # feature dim to fuse with visual branches
+
+chart_branches:
+  branch_1:
+    chart_type: area
+    color_mode: monochrome
+    label_mode: without_label
+    multivariate_mode: subplots
+  branch_2:
+    chart_type: bar
+    color_mode: monochrome
+    label_mode: without_label
+    multivariate_mode: subplots
+  branch_3:
+    chart_type: line
+    color_mode: monochrome
+    label_mode: without_label
+    multivariate_mode: subplots
+  branch_4:
+    chart_type: scatter
+    color_mode: monochrome
+    label_mode: without_label
+    multivariate_mode: subplots
+
+training:
+  batch_size: 64
+  epochs: 40
+  learning_rate: 0.0005
+
+output:
+  dir: results/multichart_mv_resnet18_transformer/
+  save_model: true

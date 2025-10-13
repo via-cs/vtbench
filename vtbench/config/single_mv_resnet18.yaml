@@ -1,0 +1,32 @@
+dataset:
+  name: UWaveGestureLibrary
+  format: uea
+  train_path: data/UWaveGestureLibrary/UWaveGestureLibrary_TRAIN.ts
+  test_path:  data/UWaveGestureLibrary/UWaveGestureLibrary_TEST.ts
+
+image_generation:
+  generate_images: true
+  overwrite_existing: true 
+  preserve_multivariate_size: true
+
+model:
+  type: single_modal_chart
+  chart_model: deepcnn
+  pretrained: true
+  num_classes: 8
+
+chart_branches:
+  branch_1:
+    chart_type: line
+    color_mode: monochrome
+    label_mode: without_label
+    multivariate_mode: subplots
+
+training:
+  batch_size: 64
+  epochs: 40
+  learning_rate: 0.0005
+
+output:
+  dir: results/single_mv_resnet18_line/
+  save_model: true

@@ -1,0 +1,7 @@
+loss: 1.6255155205726624
+accuracy: 0.78
+precision: 0.71875
+recall: 0.92
+f1_score: 0.8070175438596491
+auc: 0.488
+specificity: 0.64

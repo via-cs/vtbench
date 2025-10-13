@@ -49,18 +49,21 @@ def train_single_chart_model(config):
 
     labels = [label for _, label in train_loader.dataset]
     num_classes = len(set(labels))
+    pretrained = config['model'].get('pretrained', False)
 
-    model = get_chart_model(config['model']['chart_model'], input_channels=3, num_classes=num_classes).to(device)
+    model = get_chart_model(config['model']['chart_model'], input_channels=3, num_classes=num_classes, pretrained=pretrained).to(device)
     return train_standard_model(model, train_loader, val_loader, test_loader, config)
 
 # ========================
-# Two-branch model (NEW SEPARATE FUNCTION)
+# Two-branch model 
 # ========================
+
+import torch.nn as nn
 
 def train_two_branch_model(config):
     print("Training two-branch model: Chart + Numerical")
     loaders = create_dataloaders(config)
-    
+
     # Handle case where chart might be a list of loaders
     chart_data = loaders['train']['chart']
     if isinstance(chart_data, list):
@@ -69,131 +72,48 @@ def train_two_branch_model(config):
     else:
         chart_loader = chart_data
         test_chart_loader = loaders['test']['chart']
-    
+
     num_loader = loaders['train']['numerical']
+    test_num_loader = loaders['test']['numerical']
 
-    feature_size = 64 if config['model']['chart_model'] == 'simplecnn' else 256
-    chart_branch = get_chart_model(config['model']['chart_model'], 3, None)
+    chart_model_name = config['model']['chart_model']
+    pretrained = config['model'].get('pretrained', False)
+    fusion_mode = config['model']['fusion']
+    num_classes = int(config['model']['num_classes'])
 
+    # Detect feature size from the actual backbone (e.g., 512 for ResNet-18)
+    tmp_branch = get_chart_model(chart_model_name, input_channels=3, num_classes=None, pretrained=pretrained)
+    feature_size = getattr(tmp_branch, "feature_dim", 256)
+
+    # Build branches
+    chart_branch = get_chart_model(chart_model_name, input_channels=3, num_classes=None, pretrained=pretrained)
+
+    # Numerical branch: force transformer output_dim to match feature_size
     input_dim = next(iter(num_loader))[0].shape[1]
+    cfg = config['model'].setdefault('transformer_config', {})
+    cfg['output_dim'] = feature_size
     num_branch = get_numerical_model(config, input_dim, feature_size)
 
-    fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=2)
+    # Fusion + model
+    fusion = FusionModule(fusion_mode, feature_size, num_branches=2)
     model = TwoBranchModel(chart_branch, num_branch, fusion).to(device)
+
+    # ---- Classifier dim depends on fusion mode ----
+    if fusion_mode == 'concat':
+        fused_dim = feature_size * 2
+    elif fusion_mode == 'weighted_sum':
+        fused_dim = feature_size
+    else:
+        raise ValueError(f"Unsupported fusion mode: {fusion_mode}")
+
+    model.classifier = nn.Linear(fused_dim, num_classes).to(device)
 
     return train_two_branch_multimodal(
         model,
         chart_loader, num_loader,
-        test_chart_loader, loaders['test']['numerical'],
+        test_chart_loader, test_num_loader,
         config
     )
-
-def train_two_branch_multimodal(model, chart_loader, num_loader, test_chart_loader, test_num_loader, config):
-    """Training function specifically for TwoBranchModel (chart + numerical)"""
-    optimizer = optim.Adam(model.parameters(), lr=config['training']['learning_rate'], weight_decay=0.01)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=3, factor=0.5)
-    criterion = nn.CrossEntropyLoss()
-
-    patience = 10
-    trigger_times = 0
-    best_val_acc = 0
-
-    for epoch in range(config['training']['epochs']):
-        # === Training ===
-        model.train()
-        train_correct, train_total, train_loss = 0, 0, 0
-
-        # Create iterators
-        chart_iter = iter(chart_loader)
-        num_iter = iter(num_loader)
-        epoch_length = min(len(chart_loader), len(num_loader))
-
-        for batch_idx in range(epoch_length):
-            optimizer.zero_grad()
-            
-            try:
-                # Get batches
-                chart_batch = next(chart_iter)
-                num_batch = next(num_iter)
-                
-                # Unpack and move to device
-                chart_imgs, chart_labels = chart_batch
-                chart_imgs = chart_imgs.to(device)
-                chart_labels = chart_labels.to(device)
-                
-                num_features, _ = num_batch
-                num_features = num_features.to(device)
-                
-                # TwoBranchModel expects (chart_tensor, num_tensor)
-                outputs = model((chart_imgs, num_features))
-                labels = chart_labels
-                
-            except StopIteration:
-                break
-                
-            # Backpropagation
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            train_loss += loss.item()
-            train_correct += (outputs.argmax(dim=1) == labels).sum().item()
-            train_total += labels.size(0)
-
-        train_acc = 100 * train_correct / train_total
-
-        # === Validation ===
-        model.eval()
-        val_correct, val_total, val_loss = 0, 0, 0
-        
-        val_chart_iter = iter(test_chart_loader)
-        val_num_iter = iter(test_num_loader)
-        val_length = min(len(test_chart_loader), len(test_num_loader))
-        
-        with torch.no_grad():
-            for batch_idx in range(val_length):
-                try:
-                    # Get validation batches
-                    val_chart_batch = next(val_chart_iter)
-                    val_num_batch = next(val_num_iter)
-                    
-                    # Unpack and move to device
-                    val_chart_imgs, val_chart_labels = val_chart_batch
-                    val_chart_imgs = val_chart_imgs.to(device)
-                    val_chart_labels = val_chart_labels.to(device)
-                    
-                    val_num_features, _ = val_num_batch
-                    val_num_features = val_num_features.to(device)
-                    
-                    # Forward pass
-                    val_outputs = model((val_chart_imgs, val_num_features))
-                    val_labels = val_chart_labels
-                    
-                    loss = criterion(val_outputs, val_labels)
-                    val_loss += loss.item()
-                    val_correct += (val_outputs.argmax(dim=1) == val_labels).sum().item()
-                    val_total += val_labels.size(0)
-                    
-                except StopIteration:
-                    break
-        
-        val_acc = 100 * val_correct / val_total if val_total > 0 else 0
-
-        print(f"[Epoch {epoch + 1}] Train Loss: {train_loss / epoch_length:.4f}, Train Acc: {train_acc:.2f}%, "
-              f"Val Loss: {val_loss / val_length:.4f}, Val Acc: {val_acc:.2f}%")
-        
-        scheduler.step(val_loss)
-
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            trigger_times = 0
-        else:
-            trigger_times += 1
-            if trigger_times >= patience:
-                print("Early stopping.")
-                break
-
-    return model
 
 # ========================
 # Multi-chart model (NEW SEPARATE FUNCTION)
@@ -204,38 +124,59 @@ def train_multi_chart_model(config):
     loaders = create_dataloaders(config)
 
     chart_model = config['model']['chart_model']
-    feature_size = 64 if chart_model == 'simplecnn' else 256
+    pretrained = config['model'].get('pretrained', False)
+    fusion_mode = config['model']['fusion']
+    num_classes = int(config['model']['num_classes'])
+
+    # Detect per-branch feature size from the chosen backbone
+    tmp_branch = get_chart_model(chart_model, input_channels=3, num_classes=None, pretrained=pretrained)
+    feature_size = getattr(tmp_branch, "feature_dim", 256)
 
     train_charts = loaders['train']['chart']
     test_charts = loaders['test']['chart']
-    
-    # Check if numerical branch is specified and data is available
+
+    # Build one visual branch per chart DataLoader
+    branches = [get_chart_model(chart_model, 3, None, pretrained=pretrained) for _ in train_charts]
+    num_visual = len(branches)
+
+    # Numerical branch?
     has_numerical = config['model']['numerical_branch'] != 'none'
     train_numerical = loaders['train']['numerical'] if has_numerical else None
     test_numerical = loaders['test']['numerical'] if has_numerical else None
-
-    branches = [get_chart_model(chart_model, 3, None) for _ in train_charts]
+    num_branches = num_visual + (1 if has_numerical and train_numerical is not None else 0)
 
     if has_numerical and train_numerical is not None:
-        # Get input dimension from numerical data
+        # Determine numerical input dimension
         try:
             sample_batch = next(iter(train_numerical))
             input_dim = sample_batch[0].shape[1]
         except (StopIteration, IndexError, AttributeError) as e:
             raise ValueError(f"Could not determine input dimension from numerical data: {e}")
-            
+
+        # Force transformer output_dim to match visual feature_size
+        cfg = config['model'].setdefault('transformer_config', {})
+        cfg['output_dim'] = feature_size
         num_branch = get_numerical_model(config, input_dim, feature_size)
-        fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=len(branches) + 1)
+
+        fusion = FusionModule(fusion_mode, feature_size, num_branches=num_branches)
         model = MultiChartNumericalModel(branches, num_branch, fusion).to(device)
-        
-        print(f"Created MultiChartNumericalModel with {len(branches)} chart branches + numerical branch")
+        print(f"Created MultiChartNumericalModel with {num_visual} chart branches + numerical branch")
     else:
-        fusion = FusionModule(config['model']['fusion'], feature_size, num_branches=len(branches))
+        fusion = FusionModule(fusion_mode, feature_size, num_branches=num_visual)
         model = MultiChartModel(branches, fusion).to(device)
         train_numerical = None
         test_numerical = None
-        
-        print(f"Created MultiChartModel with {len(branches)} chart branches (no numerical)")
+        print(f"Created MultiChartModel with {num_visual} chart branches (no numerical)")
+
+    # ---- Classifier dim depends on fusion mode ----
+    if fusion_mode == 'concat':
+        fused_dim = feature_size * num_branches
+    elif fusion_mode == 'weighted_sum':
+        fused_dim = feature_size
+    else:
+        raise ValueError(f"Unsupported fusion mode: {fusion_mode}")
+
+    model.classifier = nn.Linear(fused_dim, num_classes).to(device)
 
     return train_multichart_multimodal(
         model,
@@ -396,7 +337,7 @@ def get_numerical_model(config, input_dim, feature_size):
             num_heads=cfg.get('num_heads', 4),
             num_layers=cfg.get('num_layers', 2),
             dropout=cfg.get('dropout', 0.1),
-            output_dim=cfg.get('output_dim', feature_size)
+            output_dim=feature_size
         )
     elif numerical_model == 'oscnn':
         return NumericalOSCNN(output_dim=feature_size)

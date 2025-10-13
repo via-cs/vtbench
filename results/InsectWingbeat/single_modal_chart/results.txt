@@ -1,0 +1,7 @@
+loss: 1.3630831828888725
+accuracy: 0.5724
+precision: 0.5730411139155112
+recall: 0.5724
+f1_score: 0.5721066909593824
+auc: nan
+specificity: 0.0

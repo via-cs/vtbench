@@ -1,377 +1,390 @@
+# chart_generator.py
 import os
 import numpy as np
 import matplotlib.pyplot as plt
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
-from torchvision import transforms
 
-# Chart plotting functions
 
-def create_area_chart(ts, chart_path, color_mode, label_mode):
-    plt.figure()
-    plt.fill_between(range(len(ts)), ts, color='blue' if color_mode == 'color' else 'black')
-    if label_mode == 'with_label':
-        plt.title('Area Chart')
+# ==============================
+# Utilities & Helper Functions
+# ==============================
+
+def _sota_grid_dims(D: int) -> tuple[int, int]:
+    """
+    Grid rule:
+      - (ℓ−1) × ℓ if D ≤ ℓ(ℓ−1)
+      - ℓ × ℓ     if ℓ(ℓ−1) < D ≤ ℓ²
+      - ℓ × (ℓ+1) if ℓ² < D ≤ ℓ(ℓ+1)
+    where ℓ = ceil(sqrt(D)).
+    """
+    if D <= 0:
+        return (1, 1)
+    l = int(np.ceil(np.sqrt(D)))
+    if D <= l * (l - 1):
+        return (l - 1, l)
+    elif D <= l * l:
+        return (l, l)
     else:
-        plt.axis('off')
-    plt.savefig(chart_path, bbox_inches='tight', pad_inches=0)
-    plt.close()
+        return (l, l + 1)
 
-def create_bar_chart(ts, chart_path, bar_mode, color_mode, label_mode):
-    plt.figure()
+
+def _title_for(chart_type: str) -> str:
+    return {
+        'area': 'Area Chart',
+        'line': 'Line Chart',
+        'scatter': 'Scatter Chart',
+        'bar': 'Bar Chart'
+    }.get(chart_type, f'{chart_type.title()} Chart')
+
+
+def _coerce_numeric_1d(ts) -> np.ndarray:
+    """
+    Return 1-D float32 array with NaN/inf replaced (0.0).
+    Accepts (T,), (1,T), lists, and object arrays with mixed tokens (e.g., "v:1.23").
+    """
+    arr = np.asarray(ts, dtype=object)
+
+    # Squeeze singleton dimension, e.g., (1, T) -> (T,)
+    if arr.ndim == 2 and 1 in arr.shape:
+        arr = arr.squeeze()
+
+    # Fast cast path
+    try:
+        out = arr.astype(np.float32, copy=False)
+    except Exception:
+        # Fallback: parse token-by-token
+        vals = []
+        for x in arr.ravel().tolist():
+            try:
+                vals.append(float(str(x).split(":")[-1].strip()))
+            except Exception:
+                vals.append(0.0)
+        out = np.asarray(vals, dtype=np.float32)
+
+    # Replace NaN/inf
+    out = np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+
+    # Ensure 1-D
+    if out.ndim != 1:
+        out = out.reshape(-1)
+    return out
+
+
+def _is_multivariate(ts: np.ndarray) -> bool:
+    return isinstance(ts, np.ndarray) and ts.ndim == 2 and ts.shape[0] > 1
+
+
+# ==========================
+# Save helpers (dynamic size)
+# ==========================
+
+def _save_with_labels_dynamic(fig, path, dpi=100, pad=0.6):
+    """Keep titles/ticks; use tight_layout to avoid clipping."""
+    plt.tight_layout(pad=pad)
+    fig.savefig(path, dpi=dpi, bbox_inches=None, pad_inches=0, facecolor='white')
+    plt.close(fig)
+
+
+def _save_without_labels_dynamic(fig, path, dpi=100):
+    """No axes/ticks; fill canvas with data (no margins)."""
+    ax = fig.gca()
+    ax.set_position([0, 0, 1, 1])
+    fig.savefig(path, dpi=dpi, bbox_inches=None, pad_inches=0, facecolor='white')
+    plt.close(fig)
+
+
+# ==========================
+# Univariate Chart Creators
+# ==========================
+
+def _style_small_axes_with_labels(ax, chart_type):
+    ax.set_title(_title_for(chart_type), fontsize=8, pad=2)
+    ax.tick_params(labelsize=6, width=0.6)
+    for s in ax.spines.values():
+        s.set_linewidth(0.6)
+
+
+def create_line_chart(ts, chart_path, color_mode, label_mode,
+                      global_y_range=None):
+    v = _coerce_numeric_1d(ts)
+    fig = plt.figure()  # dynamic default size (e.g., 640x480 @ dpi=100)
+    ax = fig.gca()
     color = 'blue' if color_mode == 'color' else 'black'
-    bar_mode == 'border'
-    plt.bar(range(len(ts)), ts, color='none', edgecolor=color, width=1.0)
-    if label_mode == 'with_label':
-        plt.title('Bar Chart')
+    ax.plot(v, color=color, linewidth=1.0)
+    if global_y_range is not None:
+        ax.set_ylim(*global_y_range)
+    if label_mode == 'without_label':
+        ax.axis('off')
+        _save_without_labels_dynamic(fig, chart_path)
     else:
-        plt.axis('off')
-    plt.savefig(chart_path, bbox_inches='tight', pad_inches=0)
-    plt.close()
+        _style_small_axes_with_labels(ax, 'line')
+        _save_with_labels_dynamic(fig, chart_path)
 
-def create_line_chart(ts, chart_path, color_mode, label_mode):
-    plt.figure()
-    plt.plot(ts, color='blue' if color_mode == 'color' else 'black')
-    if label_mode == 'with_label':
-        plt.title('Line Chart')
-    else:
-        plt.axis('off')
-    plt.savefig(chart_path, bbox_inches='tight', pad_inches=0)
-    plt.close()
 
-def create_scatter_chart(ts, chart_path, scatter_mode, color_mode, label_mode):
-    plt.figure()
+def create_area_chart(ts, chart_path, color_mode, label_mode,
+                      global_y_range=None):
+    v = _coerce_numeric_1d(ts)
+    fig = plt.figure()
+    ax = fig.gca()
     color = 'blue' if color_mode == 'color' else 'black'
-    if scatter_mode == 'plain':
-        plt.scatter(range(len(ts)), ts, color=color)
-    elif scatter_mode == 'join':
-        plt.plot(ts, color='skyblue')
-        plt.scatter(range(len(ts)), ts, color=color)
-    if label_mode == 'with_label':
-        plt.title('Scatter Chart')
+    x = np.arange(len(v))
+    ax.fill_between(x, v, color=color)
+    if global_y_range is not None:
+        ax.set_ylim(*global_y_range)
+    if label_mode == 'without_label':
+        ax.axis('off')
+        _save_without_labels_dynamic(fig, chart_path)
     else:
-        plt.axis('off')
-    plt.savefig(chart_path, bbox_inches='tight', pad_inches=0)
+        _style_small_axes_with_labels(ax, 'area')
+        _save_with_labels_dynamic(fig, chart_path)
+
+
+def create_bar_chart(ts, chart_path, bar_mode, color_mode, label_mode,
+                     global_y_range=None):
+    v = _coerce_numeric_1d(ts)
+    fig = plt.figure()
+    ax = fig.gca()
+    color = 'blue' if color_mode == 'color' else 'black'
+    if bar_mode is None:
+        bar_mode = 'border'
+    x = np.arange(len(v))
+    ax.bar(x, v, color='none', edgecolor=color, width=1.0)
+    if global_y_range is not None:
+        ax.set_ylim(*global_y_range)
+    if label_mode == 'without_label':
+        ax.axis('off')
+        _save_without_labels_dynamic(fig, chart_path)
+    else:
+        _style_small_axes_with_labels(ax, 'bar')
+        _save_with_labels_dynamic(fig, chart_path)
+
+
+def create_scatter_chart(ts, chart_path, scatter_mode, color_mode, label_mode,
+                         global_y_range=None):
+    v = _coerce_numeric_1d(ts)
+    fig = plt.figure()
+    ax = fig.gca()
+    color = 'blue' if color_mode == 'color' else 'black'
+    x = np.arange(len(v))
+    if scatter_mode == 'join':
+        ax.plot(v, color=color, linewidth=0.9)
+    ax.scatter(x, v, color=color, s=6)
+    if global_y_range is not None:
+        ax.set_ylim(*global_y_range)
+    if label_mode == 'without_label':
+        ax.axis('off')
+        _save_without_labels_dynamic(fig, chart_path)
+    else:
+        _style_small_axes_with_labels(ax, 'scatter')
+        _save_with_labels_dynamic(fig, chart_path)
+
+
+# ======================================
+# Multivariate Grid (Exact Pixel Output)
+# ======================================
+
+def create_multivariate_grid_chart(
+    ts_matrix,
+    chart_path,
+    chart_type,
+    color_mode,
+    label_mode,
+    *,
+    cell_px: int = 64,   # 64x64 per cell
+    dpi: int = 100,
+    linewidth: float = 1.5,
+    scatter_s: float = 4.0,
+    global_y_range=None  # dataset-level global Y range for multi
+):
+    """
+    Save an image with pixel size: (cols*cell_px) × (rows*cell_px).
+    """
+    # Robust numeric coercion for 2D
+    try:
+        ts_obj = np.asarray(ts_matrix, dtype=object)
+    except Exception:
+        ts_obj = np.array(ts_matrix, dtype=object)
+
+    if ts_obj.ndim != 2:
+        ts_obj = ts_obj.reshape(1, -1)
+
+    # Coerce each row to numeric 1D
+    rows_list = []
+    for i in range(ts_obj.shape[0]):
+        rows_list.append(_coerce_numeric_1d(ts_obj[i]))
+    # Pad/truncate rows to the same length if needed
+    max_T = max(len(r) for r in rows_list)
+    ts = np.zeros((len(rows_list), max_T), dtype=np.float32)
+    for i, r in enumerate(rows_list):
+        if len(r) == max_T:
+            ts[i] = r
+        elif len(r) < max_T:
+            ts[i, :len(r)] = r
+        else:
+            ts[i] = r[:max_T]
+
+    V, T = ts.shape
+
+    # If (1, T) slipped in, reroute to univariate creator
+    if V == 1:
+        if chart_type == 'area':
+            create_area_chart(ts[0], chart_path, color_mode, label_mode, global_y_range)
+        elif chart_type == 'bar':
+            create_bar_chart(ts[0], chart_path, 'border', color_mode, label_mode, global_y_range)
+        elif chart_type == 'line':
+            create_line_chart(ts[0], chart_path, color_mode, label_mode, global_y_range)
+        elif chart_type == 'scatter':
+            create_scatter_chart(ts[0], chart_path, 'plain', color_mode, label_mode, global_y_range)
+        return
+
+    rows, cols = _sota_grid_dims(V)
+
+    # Global Y range for multivariate
+    if global_y_range is not None:
+        y_min, y_max = global_y_range
+    else:
+        y_min = float(np.min(ts))
+        y_max = float(np.max(ts))
+        if not np.isfinite(y_min) or not np.isfinite(y_max) or y_min == y_max:
+            y_min, y_max = y_min - 0.1, y_max + 0.1
+
+    fig_w_in = (cols * cell_px) / dpi
+    fig_h_in = (rows * cell_px) / dpi
+
+    plt.figure(figsize=(fig_w_in, fig_h_in), dpi=dpi, facecolor='white')
+    color = ('blue' if color_mode == 'color' else 'black')
+    chart_title = _title_for(chart_type)
+
+    for i in range(V):
+        ax = plt.subplot(rows, cols, i + 1)
+        v = ts[i]
+
+        if chart_type == 'line':
+            ax.plot(v, color=color, linewidth=linewidth)
+        elif chart_type == 'area':
+            ax.fill_between(np.arange(T), v, color=color)
+        elif chart_type == 'scatter':
+            ax.scatter(np.arange(T), v, c=color, s=scatter_s)
+        elif chart_type == 'bar':
+            if color_mode == 'monochrome':
+                ax.bar(np.arange(T), v, color='none', edgecolor='black', width=1.0)
+            else:
+                ax.bar(np.arange(T), v, color='blue', edgecolor='blue', width=1.0)
+        else:
+            ax.plot(v, color=color, linewidth=linewidth)
+
+        ax.set_ylim(y_min, y_max)
+        if label_mode == 'without_label':
+            ax.axis('off')
+        else:
+            ax.set_title(chart_title, fontsize=8)
+            ax.tick_params(labelsize=6)
+
+    # Fill remaining cells (blank or titled stubs)
+    for j in range(V + 1, rows * cols + 1):
+        ax = plt.subplot(rows, cols, j)
+        if label_mode == 'without_label':
+            ax.axis('off')
+        else:
+            ax.set_title(chart_title, fontsize=8)
+            ax.tick_params(labelsize=6)
+            ax.set_xticks([]); ax.set_yticks([])
+
+    # Keep a little breathing room when labels are on
+    if label_mode == 'without_label':
+        plt.tight_layout(pad=0.0)
+    else:
+        plt.tight_layout(pad=0.8)
+
+    plt.savefig(chart_path, dpi=dpi, bbox_inches=None, pad_inches=0, facecolor='white')
     plt.close()
 
 
-# Enhanced chart generation classes and functions
+# ============================
+# Global Y-Range Calculators
+# ============================
 
 class GlobalYRangeCalculator:
-    """Calculate and manage global Y-axis range"""
-    
     @staticmethod
-    def calculate_global_y_range(time_series_list: list, 
-                               margin_ratio: float = 0.05) -> tuple:
-        """Calculate global Y-axis range
-        
-        Args:
-            time_series_list: List of time series data
-            margin_ratio: Margin ratio to add padding to min/max values
-            
-        Returns:
-            (global_min, global_max): Tuple of global minimum and maximum values
-        """
-        if len(time_series_list) == 0:
-            return (0.0, 1.0)
-        
-        all_mins = []
-        all_maxs = []
-        
+    def calculate_global_y_range_univariate(time_series_list: list, margin_ratio: float = 0.05):
+        vals_min = +np.inf
+        vals_max = -np.inf
         for ts in time_series_list:
-            if len(ts) > 0:
-                # Clean data: handle NaN, inf and other outliers
-                ts_clean = np.nan_to_num(ts.astype(np.float32), nan=0.0, posinf=1.0, neginf=-1.0)
-                all_mins.append(np.min(ts_clean))
-                all_maxs.append(np.max(ts_clean))
-        
-        if not all_mins:
-            return (0.0, 1.0)
-        
-        global_min = min(all_mins)
-        global_max = max(all_maxs)
-        
-        # Add margin
-        data_range = global_max - global_min
-        if data_range > 0:
-            margin = data_range * margin_ratio
-            global_min -= margin
-            global_max += margin
-        else:
-            # If data range is 0, add fixed margin
-            global_min -= 0.1
-            global_max += 0.1
-        
-        return (global_min, global_max)
+            arr = _coerce_numeric_1d(ts)
+            if arr.size == 0:
+                continue
+            vals_min = min(vals_min, float(np.min(arr)))
+            vals_max = max(vals_max, float(np.max(arr)))
+        if not np.isfinite(vals_min) or not np.isfinite(vals_max):
+            return None
+        rng = vals_max - vals_min
+        if rng <= 0:
+            return (vals_min - 0.1, vals_max + 0.1)
+        m = margin_ratio * rng
+        return (vals_min - m, vals_max + m)
+
+    @staticmethod
+    def calculate_global_y_range_multivariate(time_series_list: list, margin_ratio: float = 0.05):
+        vals_min = +np.inf
+        vals_max = -np.inf
+        for ts in time_series_list:
+            arr_obj = np.asarray(ts, dtype=object)
+            if arr_obj.ndim == 2:
+                # Coerce each row to numeric and flatten
+                rows = []
+                for i in range(arr_obj.shape[0]):
+                    rows.append(_coerce_numeric_1d(arr_obj[i]))
+                if len(rows) == 0:
+                    continue
+                max_T = max(len(r) for r in rows)
+                if max_T == 0:
+                    continue
+                arr = np.zeros((len(rows), max_T), dtype=np.float32)
+                for i, r in enumerate(rows):
+                    if len(r) == max_T:
+                        arr[i] = r
+                    elif len(r) < max_T:
+                        arr[i, :len(r)] = r
+                    else:
+                        arr[i] = r[:max_T]
+                arr = arr.reshape(-1)
+            else:
+                arr = _coerce_numeric_1d(arr_obj)
+
+            if arr.size == 0:
+                continue
+
+            vals_min = min(vals_min, float(np.min(arr)))
+            vals_max = max(vals_max, float(np.max(arr)))
+
+        if not np.isfinite(vals_min) or not np.isfinite(vals_max):
+            return None
+        rng = vals_max - vals_min
+        if rng <= 0:
+            return (vals_min - 0.1, vals_max + 0.1)
+        m = margin_ratio * rng
+        return (vals_min - m, vals_max + m)
 
 
-class EnhancedImageGenerator:
-    """Enhanced image generator - supports multiple chart types, color modes and label modes"""
-    
-    def __init__(self, height: int, width: int, 
-                 color_mode: str = 'color', 
-                 label_mode: str = 'with_label',
-                 content_ratio: float = 0.95, 
-                 global_y_range: tuple = None):
-        """Initialize image generator
-        
-        Args:
-            height: Image height
-            width: Image width
-            color_mode: Color mode ('color' or 'monochrome')
-            label_mode: Label mode ('with_label' or 'without_label')
-            content_ratio: Content area ratio (0-1)
-            global_y_range: Global Y-axis range (min, max) or None
-        """
-        self.height = height
-        self.width = width
-        self.color_mode = color_mode
-        self.label_mode = label_mode
-        self.content_ratio = content_ratio
-        self.global_y_range = global_y_range
-        
-        # Calculate content area dimensions
-        self.content_width = int(width * content_ratio)
-        self.content_height = int(height * content_ratio)
-        self.margin_x = (width - self.content_width) // 2
-        self.margin_y = (height - self.content_height) // 2
-    
-    def generate_image(self, time_series: np.ndarray, chart_type: str = 'area', 
-                      class_label: int = None) -> np.ndarray:
-        """Generate high quality time series image
-        
-        Args:
-            time_series: Time series data
-            chart_type: Chart type ('area', 'line', 'scatter', 'bar')
-            class_label: Class label (optional, not used in current version)
-            
-        Returns:
-            Image as numpy array (C, H, W), values in range [0,1]
-        """
-        # Clean input data
-        ts_clean = np.nan_to_num(time_series.astype(np.float32), nan=0.0, posinf=1.0, neginf=-1.0)
-        return self._create_matplotlib_chart(ts_clean, chart_type, class_label)
-    
-    def _create_matplotlib_chart(self, ts: np.ndarray, chart_type: str, 
-                                class_label: int) -> np.ndarray:
-        """Core method to create chart using matplotlib"""
-        if len(ts) == 0:
-            # Return blank image
-            return np.ones((3, self.height, self.width), dtype=np.float32)
-        
-        # Create figure with size and DPI settings
-        fig_width = self.width / 100
-        fig_height = self.height / 100
-        
-        plt.figure(figsize=(fig_width, fig_height), dpi=100, facecolor='white')
-        ax = plt.gca()
-        
-        x_data = np.arange(len(ts))
-        
-        # Draw based on chart type
-        if chart_type == 'area':
-            color = 'blue' if self.color_mode == 'color' else 'black'
-            plt.fill_between(x_data, ts, color=color)
-            
-        elif chart_type == 'line':
-            color = 'blue' if self.color_mode == 'color' else 'black'
-            plt.plot(ts, color=color)
-            
-        elif chart_type == 'scatter':
-            color = 'blue' if self.color_mode == 'color' else 'black'
-            plt.scatter(x_data, ts, color=color)
-            
-        elif chart_type == 'bar':
-            color = 'blue' if self.color_mode == 'color' else 'black'
-            plt.bar(x_data, ts, color='none', edgecolor=color, width=1.0)
-        
-        # Set Y-axis range (if global range is specified)
-        if self.global_y_range is not None:
-            y_min, y_max = self.global_y_range
-            plt.ylim(y_min, y_max)
-        
-        # Configure axes and labels
-        self._configure_axes(chart_type)
-        
-        # Convert to image array
-        image = self._convert_figure_to_array()
-        plt.close()
-        
-        return image
-    
-    def _configure_axes(self, chart_type: str):
-        """Configure axis display"""
-        if self.label_mode == 'with_label':
-            # With label mode: show title
-            chart_titles = {
-                'area': 'Area Chart',
-                'line': 'Line Chart', 
-                'scatter': 'Scatter Chart',
-                'bar': 'Bar Chart'
-            }
-            title = chart_titles.get(chart_type, f'{chart_type.title()} Chart')
-            plt.title(title)
-            # Keep matplotlib default axis labels and ticks
-            
-        elif self.label_mode == 'without_label':
-            # Without label mode: hide all axes and labels
-            plt.axis('off')
-    
-    def _convert_figure_to_array(self) -> np.ndarray:
-        """Convert matplotlib figure to numpy array"""
-        # Save figure to memory buffer
-        from io import BytesIO
-        buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=100, bbox_inches='tight', 
-                   pad_inches=0, facecolor='white', edgecolor='none')
-        buf.seek(0)
-        
-        # Load image using PIL
-        pil_img = Image.open(buf)
-        if pil_img.mode != 'RGB':
-            pil_img = pil_img.convert('RGB')
-        
-        # Resize to target dimensions
-        pil_img = pil_img.resize((self.width, self.height), Image.LANCZOS)
-        
-        # Convert to numpy array
-        image_array = np.array(pil_img)
-        buf.close()
-        
-        # Normalize to [0,1] range and convert to (C,H,W) format
-        image = image_array.astype(np.float32) / 255.0
-        image = image.transpose(2, 0, 1)  # (H,W,C) -> (C,H,W)
-        
-        return image
-
-
-def save_image_array(image: np.ndarray, output_path: str):
-    """Save image array to file
-    
-    Args:
-        image: Image array with shape (C,H,W), values in range [0,1]
-        output_path: Output file path
-    """
-    # Convert to uint8 format
-    image_uint8 = (np.clip(image, 0, 1) * 255).astype(np.uint8)
-    # Convert to PIL format (H,W,C)
-    image_pil = Image.fromarray(image_uint8.transpose(1, 2, 0), 'RGB')
-    
-    # Create output directory
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    # Save image
-    image_pil.save(output_path, 'PNG')
-
-
-# Convenience functions
-
-def create_time_series_chart(time_series: np.ndarray, 
-                           output_path: str,
-                           chart_type: str = 'area',
-                           color_mode: str = 'color',
-                           label_mode: str = 'with_label',
-                           width: int = 256,
-                           height: int = 256,
-                           global_y_range: tuple = None) -> np.ndarray:
-    """Convenience function to create a single time series chart
-    
-    Args:
-        time_series: Time series data
-        output_path: Output file path
-        chart_type: Chart type ('area', 'line', 'scatter', 'bar')
-        color_mode: Color mode ('color', 'monochrome')
-        label_mode: Label mode ('with_label', 'without_label')
-        width: Image width
-        height: Image height
-        global_y_range: Global Y-axis range (min, max) or None
-        
-    Returns:
-        Generated image array
-    """
-    generator = EnhancedImageGenerator(
-        height=height, 
-        width=width, 
-        color_mode=color_mode, 
-        label_mode=label_mode,
-        global_y_range=global_y_range
-    )
-    
-    image = generator.generate_image(time_series, chart_type)
-    save_image_array(image, output_path)
-    
-    return image
-
-
-def create_multiple_charts(time_series_list: list,
-                         output_dir: str,
-                         chart_types: list = ['area'],
-                         color_modes: list = ['color'],
-                         label_modes: list = ['with_label'],
-                         width: int = 256,
-                         height: int = 256,
-                         use_global_y_range: bool = True) -> list:
-    """Batch create multiple time series charts
-    
-    Args:
-        time_series_list: List of time series data
-        output_dir: Output directory
-        chart_types: List of chart types
-        color_modes: List of color modes
-        label_modes: List of label modes
-        width: Image width
-        height: Image height
-        use_global_y_range: Whether to use global Y-axis range
-        
-    Returns:
-        List of generated file paths
-    """
-    # Calculate global Y-axis range
-    global_y_range = None
-    if use_global_y_range:
-        global_y_range = GlobalYRangeCalculator.calculate_global_y_range(time_series_list)
-    
-    created_files = []
-    
-    # Generate all combinations
-    for i, ts in enumerate(time_series_list):
-        for chart_type in chart_types:
-            for color_mode in color_modes:
-                for label_mode in label_modes:
-                    filename = f"chart_{i}_{chart_type}_{color_mode}_{label_mode}.png"
-                    output_path = os.path.join(output_dir, filename)
-                    
-                    create_time_series_chart(
-                        time_series=ts,
-                        output_path=output_path,
-                        chart_type=chart_type,
-                        color_mode=color_mode,
-                        label_mode=label_mode,
-                        width=width,
-                        height=height,
-                        global_y_range=global_y_range
-                    )
-                    
-                    created_files.append(output_path)
-    
-    return created_files
-
-
-
-# Image dataset class
+# ==========================
+# Image Dataset (PNG files)
+# ==========================
 
 class TimeSeriesImageDataset(Dataset):
     """
-    PyTorch Dataset for loading chart images generated from time series data.
-    Automatically generates the images if not found.
+    Generates chart images once (if requested) and loads them for training.
+    Let your training transforms resize to 128x128 later.
+    Univariate -> dynamic matplotlib default size
+    Multivariate -> exact (cols*cell_px) x (rows*cell_px) grid
     """
 
     def __init__(self, time_series_data, labels, dataset_name, split,
-             chart_type='area', color_mode='color', label_mode='with_label',
-             scatter_mode='plain', bar_mode='border', transform=None,
-             generate_images=False, overwrite_existing=False,
-             global_indices=None):
-    
+                 chart_type='area', color_mode='color', label_mode='with_label',
+                 scatter_mode='plain', bar_mode='border', transform=None,
+                 generate_images=False, overwrite_existing=False,
+                 global_indices=None, multivariate_mode='subplots'):
         self.time_series_data = time_series_data
         self.labels = labels
         self.dataset_name = dataset_name
@@ -385,42 +398,35 @@ class TimeSeriesImageDataset(Dataset):
         self.generate_images = generate_images
         self.overwrite_existing = overwrite_existing
         self.global_indices = global_indices if global_indices is not None else list(range(len(labels)))
+        self.multivariate_mode = multivariate_mode
 
         self.base_dir = f"chart_images/{self.dataset_name}_images"
         self._setup_chart_dir()
+
+        # Dataset-level global Y ranges (computed only when generating)
+        self.uni_global_y = None
+        self.multi_global_y = None
+        if self.generate_images:
+            self.uni_global_y = GlobalYRangeCalculator.calculate_global_y_range_univariate(self.time_series_data)
+            self.multi_global_y = GlobalYRangeCalculator.calculate_global_y_range_multivariate(self.time_series_data)
+
         if self.generate_images:
             self._generate_charts_if_needed()
-
 
     def _setup_chart_dir(self):
         if self.chart_type == 'area':
             self.chart_dir = f"{self.base_dir}/area_charts_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'bar':
-            bar_mode = self.bar_mode or 'border'
-            self.chart_dir = f"{self.base_dir}/bar_charts_{bar_mode}_{self.color_mode}_{self.label_mode}/{self.split}"
+            bm = self.bar_mode or 'border'
+            self.chart_dir = f"{self.base_dir}/bar_charts_{bm}_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'line':
             self.chart_dir = f"{self.base_dir}/line_charts_{self.color_mode}_{self.label_mode}/{self.split}"
         elif self.chart_type == 'scatter':
-            self.chart_dir = f"{self.base_dir}/scatter_charts_{self.scatter_mode}_{self.color_mode}_{self.label_mode}/{self.split}"
+            sm = self.scatter_mode or 'plain'
+            self.chart_dir = f"{self.base_dir}/scatter_charts_{sm}_{self.color_mode}_{self.label_mode}/{self.split}"
         else:
             raise ValueError(f"Unsupported chart type: {self.chart_type}")
-        
         os.makedirs(self.chart_dir, exist_ok=True)
-
-    def _generate_charts_if_needed(self):
-        for local_idx, ts in enumerate(self.time_series_data):
-            chart_path = os.path.join(self.chart_dir, self._get_image_filename(local_idx))  # NOT global_idx
-            if not os.path.exists(chart_path):
-                if self.chart_type == 'area':
-                    create_area_chart(ts, chart_path, self.color_mode, self.label_mode)
-                elif self.chart_type == 'bar':
-                    create_bar_chart(ts, chart_path, self.bar_mode, self.color_mode, self.label_mode)
-                elif self.chart_type == 'line':
-                    create_line_chart(ts, chart_path, self.color_mode, self.label_mode)
-                elif self.chart_type == 'scatter':
-                    create_scatter_chart(ts, chart_path, self.scatter_mode, self.color_mode, self.label_mode)
-
-
 
     def _get_image_filename(self, idx):
         actual_idx = self.global_indices[idx] if self.global_indices is not None else idx
@@ -430,15 +436,52 @@ class TimeSeriesImageDataset(Dataset):
             'line': 'line_chart',
             'scatter': 'scatter_chart'
         }[self.chart_type]
-
         if self.chart_type == 'bar':
-            return f"{prefix}_{self.bar_mode}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
+            bm = self.bar_mode or 'border'
+            return f"{prefix}_{bm}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
         elif self.chart_type == 'scatter':
-            return f"{prefix}_{self.scatter_mode}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
+            sm = self.scatter_mode or 'plain'
+            return f"{prefix}_{sm}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
         else:
             return f"{prefix}_{self.color_mode}_{self.label_mode}_{actual_idx}.png"
 
+    def _generate_charts_if_needed(self):
+        for local_idx, ts in enumerate(self.time_series_data):
+            chart_path = os.path.join(self.chart_dir, self._get_image_filename(local_idx))
+            if os.path.exists(chart_path) and not self.overwrite_existing:
+                continue
 
+            ts_arr = np.asarray(ts)
+            # Treat (1, T) as univariate
+            if ts_arr.ndim == 2 and ts_arr.shape[0] == 1:
+                ts_arr = ts_arr.squeeze(0)
+
+            if _is_multivariate(ts_arr):
+                # Multivariate → grid with dataset-level global Y range
+                create_multivariate_grid_chart(
+                    ts_matrix=ts_arr,
+                    chart_path=chart_path,
+                    chart_type=self.chart_type,
+                    color_mode=self.color_mode,
+                    label_mode=self.label_mode,
+                    cell_px=64,
+                    global_y_range=self.multi_global_y
+                )
+            else:
+                # Univariate → dynamic size; model will resize later
+                gy = self.uni_global_y
+                if self.chart_type == 'area':
+                    create_area_chart(ts_arr, chart_path, self.color_mode, self.label_mode,
+                                      global_y_range=gy)
+                elif self.chart_type == 'bar':
+                    create_bar_chart(ts_arr, chart_path, self.bar_mode, self.color_mode, self.label_mode,
+                                     global_y_range=gy)
+                elif self.chart_type == 'line':
+                    create_line_chart(ts_arr, chart_path, self.color_mode, self.label_mode,
+                                      global_y_range=gy)
+                elif self.chart_type == 'scatter':
+                    create_scatter_chart(ts_arr, chart_path, self.scatter_mode, self.color_mode, self.label_mode,
+                                         global_y_range=gy)
 
     def __len__(self):
         return len(self.labels)
@@ -446,15 +489,16 @@ class TimeSeriesImageDataset(Dataset):
     def __getitem__(self, idx):
         chart_path = os.path.join(self.chart_dir, self._get_image_filename(idx))
         img = Image.open(chart_path).convert('RGB')
-
         if self.transform:
             img = self.transform(img)
-
         label = torch.tensor(self.labels[idx], dtype=torch.long)
         return img, label
-    
 
-# Numerical Dataset 
+
+# ==========================
+# Numerical-only Dataset
+# ==========================
+
 class NumericalDataset(Dataset):
     def __init__(self, numerical_data, labels):
         self.numerical_data = torch.tensor(numerical_data, dtype=torch.float32)
@@ -466,6 +510,10 @@ class NumericalDataset(Dataset):
     def __getitem__(self, idx):
         return self.numerical_data[idx], self.labels[idx]
 
+
+# ==========================
+# Quick display helper
+# ==========================
 
 def display_chart(image_path):
     img = Image.open(image_path)
