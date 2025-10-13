@@ -25,6 +25,19 @@ git clone https://github.com/<your-username>/vtbench.git
 cd vtbench
 pip install -e .
 ```
+## Instructions to run 
+
+1. Create a folder named `data/` in the project root.
+2. Place your time-series datasets in **.ts** format (e.g., UCR/UEA style) inside `data/`.
+3. Run your YAML config:
+```bash
+   vtbench --config path/to/config.yaml
+```
+5. On first run, chart images are **automatically generated** and saved under:
+``` bash
+chart_images/<dataset_name>/...
+```
+Note: Images are reused on subsequent runs. To regenerate or overwrite chart images, set generate_images and overwrite_existing in your YAML config.
 
 ## Configuration Files
 
@@ -61,5 +74,6 @@ VTBench is designed for:
 - Ablation studies on chart types, fusion strategies, and architectures
 - Reproducible research via config-driven design
 - Extending to new encoders (ResNet, ViT, LSTM, TCN, etc.) and modalities (spectrograms, text metadata, etc.)
+
 
 
