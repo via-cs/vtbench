@@ -2,41 +2,89 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from tslearn.datasets import load_from_tsfile_to_dataframe
-from tslearn.metrics import dtw
-from tslearn.barycenters import dtw_barycenter_averaging
+from scipy.spatial.distance import cdist
 
-
-# === Configuration ===
-data_root = "/Users/akkumy/Downloads/test_vtbench/vtbench/data" 
-datasets = ["Beef", "BeetleFly"]    # datasets you want to test
-output_dir = "results/raw_overlay"
+# === CONFIGURATION ===
+data_root = "/Users/akkumy/Downloads/test_vtbench/vtbench/data"
+datasets = ["Beef", "BeetleFly"]
+output_dir = "results/raw_overlay_no_tslearn"
 os.makedirs(output_dir, exist_ok=True)
 
+# === 1. Simple .ts file loader (UCR format) ===
+def load_tsfile_to_dataframe(path):
+    with open(path, "r") as f:
+        lines = [line.strip() for line in f if line.strip()]
+    data = []
+    labels = []
+    for line in lines:
+        if "@" in line or "#" in line:
+            continue
+        parts = line.split(",")
+        labels.append(parts[-1])
+        data.append(np.array([float(x) for x in parts[:-1]]))
+    return np.array(data, dtype=object), np.array(labels)
+
+# === 2. Basic DTW function ===
+def dtw_distance(s1, s2):
+    n, m = len(s1), len(s2)
+    D = np.full((n + 1, m + 1), np.inf)
+    D[0, 0] = 0
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = abs(s1[i - 1] - s2[j - 1])
+            D[i, j] = cost + min(D[i - 1, j], D[i, j - 1], D[i - 1, j - 1])
+    return D[n, m]
+
+# === 3. Approximate DTW barycenter averaging ===
+def dtw_barycenter(samples, max_iter=5):
+    mean = np.mean(np.vstack([s[:min(map(len, samples))] for s in samples]), axis=0)
+    for _ in range(max_iter):
+        aligned = []
+        for s in samples:
+            path = dtw_path(mean, s)
+            aligned_s = np.array([s[j] for _, j in path])
+            aligned.append(np.interp(np.linspace(0, len(aligned_s)-1, len(mean)),
+                                     np.arange(len(aligned_s)), aligned_s))
+        mean = np.mean(aligned, axis=0)
+    return mean
+
+# Helper for DTW alignment
+def dtw_path(s1, s2):
+    n, m = len(s1), len(s2)
+    D = np.full((n + 1, m + 1), np.inf)
+    D[0, 0] = 0
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            cost = abs(s1[i - 1] - s2[j - 1])
+            D[i, j] = cost + min(D[i - 1, j], D[i, j - 1], D[i - 1, j - 1])
+    # Traceback
+    i, j = n, m
+    path = []
+    while i > 0 and j > 0:
+        path.append((i - 1, j - 1))
+        choices = [D[i - 1, j], D[i, j - 1], D[i - 1, j - 1]]
+        step = np.argmin(choices)
+        if step == 0: i -= 1
+        elif step == 1: j -= 1
+        else:
+            i -= 1
+            j -= 1
+    return path[::-1]
+
+# === MAIN LOOP ===
 results = []
 
 for dataset in datasets:
     print(f"\n=== Processing {dataset} ===")
+    train_path = os.path.join(data_root, dataset, f"{dataset}_TRAIN.ts")
+    test_path = os.path.join(data_root, dataset, f"{dataset}_TEST.ts")
 
-    dataset_dir = os.path.join(data_root, dataset)
-    train_path = os.path.join(dataset_dir, f"{dataset}_TRAIN.ts")
-    test_path = os.path.join(dataset_dir, f"{dataset}_TEST.ts")
-
-    # Load data (from .ts files in UCR format)
-    X_train_df, y_train = load_from_tsfile_to_dataframe(train_path)
-    X_test_df, y_test = load_from_tsfile_to_dataframe(test_path)
-
-    # Convert DataFrame of series objects to numpy arrays
-    X_train = np.stack(X_train_df.iloc[:, 0].apply(lambda x: np.array(x)).values)
-    X_test = np.stack(X_test_df.iloc[:, 0].apply(lambda x: np.array(x)).values)
-
+    X_train, y_train = load_tsfile_to_dataframe(train_path)
+    X_test, y_test = load_tsfile_to_dataframe(test_path)
     X = np.concatenate([X_train, X_test])
     y = np.concatenate([y_train, y_test])
 
-
     classes = np.unique(y)
-    print(f"Found classes: {classes}")
-
     plt.figure(figsize=(8, 4))
     barycenters = []
 
@@ -45,22 +93,21 @@ for dataset in datasets:
         selected_idx = np.random.choice(idx, size=min(20, len(idx)), replace=False)
         samples = X[selected_idx]
 
-        # Plot overlay of samples
+        # Plot overlay
         for s in samples:
             plt.plot(s.ravel(), alpha=0.25)
 
-        # Compute DTW barycenter
-        barycenter = dtw_barycenter_averaging(samples)
+        # Compute simple average barycenter
+        barycenter = np.mean(np.vstack(samples), axis=0)
         barycenters.append(barycenter)
         plt.plot(barycenter, linewidth=3, label=f"Class {c} mean")
 
-    # Compute DTW barycenter distance (only for 2-class datasets)
+    # Compute DTW barycenter distance
     if len(barycenters) == 2:
-        dtw_dist = dtw(barycenters[0].ravel(), barycenters[1].ravel())
+        dtw_dist = dtw_distance(barycenters[0], barycenters[1])
         print(f"DTW barycenter distance: {dtw_dist:.4f}")
         results.append({"dataset": dataset, "DTW_distance": dtw_dist})
     else:
-        print("Skipping DTW (dataset has more than 2 classes)")
         results.append({"dataset": dataset, "DTW_distance": np.nan})
 
     plt.title(f"{dataset} – Raw Time-Series Overlay")
@@ -69,8 +116,8 @@ for dataset in datasets:
     plt.savefig(os.path.join(output_dir, f"{dataset}_overlay.png"), dpi=300)
     plt.close()
 
-# === Save summary table ===
+# === SAVE SUMMARY TABLE ===
 df = pd.DataFrame(results)
-df.to_csv("EXPERIMENT_2B/DTW_summary.csv", index=False)
-print("\nSaved summary table to EXPERIMENT_2B/DTW_summary.csv")
+df.to_csv("EXPERIMENT_2B/DTW_summary_no_tslearn.csv", index=False)
+print("\nSaved summary table to EXPERIMENT_2B/DTW_summary_no_tslearn.csv")
 print(df)
