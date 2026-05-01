@@ -5,3 +5,8 @@ scikit-learn
 imbalanced-learn
 PyYAML
 matplotlib
+pandas
+seaborn
+umap-learn
+opencv-python
+grad-cam

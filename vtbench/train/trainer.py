@@ -2,15 +2,15 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import Counter
-from vtbench.data.loader import create_dataloaders
-from vtbench.models.numerical.fcn import NumericalFCN
-from vtbench.models.numerical.transformer import NumericalTransformer
-from vtbench.models.numerical.oscnn import NumericalOSCNN
-from vtbench.models.multimodal.one_chart_numerical import TwoBranchModel
-from vtbench.models.multimodal.multi_chart import MultiChartModel
-from vtbench.models.multimodal.multi_chart_numerical import MultiChartNumericalModel
-from vtbench.models.multimodal.fusion import FusionModule
-from vtbench.train.factory import get_chart_model
+from data.loader import create_dataloaders
+from models.numerical.fcn import NumericalFCN
+from models.numerical.transformer import NumericalTransformer
+from models.numerical.oscnn import NumericalOSCNN
+from models.multimodal.one_chart_numerical import TwoBranchModel
+from models.multimodal.multi_chart import MultiChartModel
+from models.multimodal.multi_chart_numerical import MultiChartNumericalModel
+from models.multimodal.fusion import FusionModule
+from train.factory import get_chart_model
 import os
 import yaml
 
@@ -47,11 +47,32 @@ def train_single_chart_model(config):
     val_loader = loaders['val']['chart']
     test_loader = loaders['test']['chart']
 
-    labels = [label for _, label in train_loader.dataset]
-    num_classes = len(set(labels))
+    # Determine number of classes from the training dataset labels.
+    # We try a few safe methods because train_loader.dataset might be a Subset, TensorDataset or custom dataset.
+    try:
+        # If dataset supports direct iteration of (x, y) pairs:
+        labels = [int(lbl) for _, lbl in train_loader.dataset]
+    except Exception:
+        try:
+            # If dataset is a Subset wrapping another dataset
+            base_ds = getattr(train_loader.dataset, 'dataset', train_loader.dataset)
+            labels = [int(lbl) for _, lbl in base_ds]
+        except Exception:
+            # Last resort: iterate through the loader (one epoch) and collect labels
+            labels = []
+            for _, lbl in train_loader:
+                labels.extend([int(x) for x in lbl])
+                # prevent scanning entire big dataset more than necessary — break only after one full pass would be fine
+            if len(labels) == 0:
+                raise RuntimeError("Could not infer labels from train_loader.dataset")
 
+    num_classes = len(set(labels))
+    print(f"Detected {num_classes} classes from training data")
+
+    # Pass num_classes to the chart model factory
     model = get_chart_model(config['model']['chart_model'], input_channels=3, num_classes=num_classes).to(device)
     return train_standard_model(model, train_loader, val_loader, test_loader, config)
+
 
 # ========================
 # Two-branch model (NEW SEPARATE FUNCTION)

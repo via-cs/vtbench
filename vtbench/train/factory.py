@@ -1,5 +1,5 @@
-from vtbench.models.chart_models.simplecnn import SimpleCNN
-from vtbench.models.chart_models.deepcnn import DeepCNN
+from models.chart_models.simplecnn import SimpleCNN
+from models.chart_models.deepcnn import DeepCNN
 
 def get_chart_model(name, input_channels=3, num_classes=None):
     name = name.lower()

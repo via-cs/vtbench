@@ -3,41 +3,73 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 from sklearn.model_selection import StratifiedShuffleSplit
-from vtbench.data.chart_generator import TimeSeriesImageDataset, NumericalDataset
+from data.chart_generator import TimeSeriesImageDataset, NumericalDataset
 from collections import Counter
 
-def read_ucr(filename):
-    data, labels = [], []
-    label_set = set()
-    with open(filename, 'r') as file:
-        for line in file:
-            parts = line.strip().split(',')
-            if len(parts) < 2:
+def read_ucr(path):
+    """
+    Reads a UCR/UEA .ts file into (X, y).
+    Handles headers, metadata, @data section, and colon/comma label formats.
+    """
+    X, y = [], []
+    is_data = False
+    has_label = False
+
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
                 continue
-            label = int(parts[-1].split(':')[-1])
-            label_set.add(label)
+            if line.lower().startswith("@data"):
+                is_data = True
+                continue
+            if not is_data:
+                if line.lower().startswith("@classlabel") and "true" in line.lower():
+                    has_label = True
+                continue
 
-    if label_set == {0, 1}:
-        normalize = lambda l: l
-    elif label_set == {1, 2}:
-        normalize = lambda l: 0 if l == 1 else 1
-    elif label_set == {-1, 1}:
-        normalize = lambda l: 0 if l == -1 else 1
-    else:
-        # For multi-class datasets, convert labels to 0-based indexing
-        sorted_labels = sorted(label_set)
-        label_map = {label: idx for idx, label in enumerate(sorted_labels)}
-        normalize = lambda l: label_map[l]
+            # --- data lines ---
+            if ":" in line:
+                try:
+                    data_part, label_part = line.split(":")
+                    values = [float(v) for v in data_part.replace(",", " ").split()]
+                    label = int(float(label_part.strip()))
+                    X.append(values)
+                    y.append(label)
+                    continue
+                except Exception:
+                    continue
 
-    with open(filename, 'r') as file:
-        for line in file:
-            parts = line.strip().split(',')
-            features = [float(f) for f in parts[:-1]]
-            label = int(parts[-1].split(':')[-1])
-            data.append(features)
-            labels.append(normalize(label))
+            parts = line.replace("\t", " ").replace("  ", " ").split(",")
+            if len(parts) == 1:
+                parts = line.split()
 
-    return np.array(data), np.array(labels)
+            try:
+                if has_label:
+                    try:
+                        label = int(float(parts[0]))
+                        values = [float(v) for v in parts[1:]]
+                    except ValueError:
+                        values = [float(v) for v in parts[:-1]]
+                        label = int(float(parts[-1]))
+                    X.append(values)
+                    y.append(label)
+                else:
+                    X.append([float(v) for v in parts])
+            except Exception:
+                continue
+
+    X = np.array(X, dtype=float)
+    y = np.array(y, dtype=int) if has_label else np.zeros(len(X), dtype=int)
+
+    # Normalize labels to start from 0
+    if len(np.unique(y)) > 0:
+        unique_labels = np.unique(y)
+        label_map = {old: i for i, old in enumerate(unique_labels)}
+        y = np.array([label_map[val] for val in y], dtype=int)
+
+    print(f" Loaded {path}: {X.shape[0]} samples, {X.shape[1] if X.ndim>1 else 0} features, {len(np.unique(y))} classes")
+    return X, y
 
 
 def stratified_val_test_split(dataset, labels, val_size=0.2, seed=42):
@@ -45,7 +77,6 @@ def stratified_val_test_split(dataset, labels, val_size=0.2, seed=42):
     indices = np.arange(len(dataset))
     for val_idx, test_idx in sss.split(indices, labels):
         return Subset(dataset, val_idx), Subset(dataset, test_idx)
-
 
 def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform, generate_images=False, overwrite_existing=False, global_indices=None):
     datasets = []
@@ -67,8 +98,6 @@ def build_chart_datasets(X, y, split, dataset_name, chart_branches, transform, g
         )
         datasets.append(ds)
     return datasets
-
-
 
 def create_dataloaders(config, seed=42):
     model_type = config['model']['type']
