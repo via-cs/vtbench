@@ -1,0 +1,29 @@
+dataset:
+  name: RefrigerationDevices
+  train_path: /Users/akkumy/Downloads/test_vtbench/vtbench/data/RefrigerationDevices/RefrigerationDevices_TRAIN.ts
+  test_path: /Users/akkumy/Downloads/test_vtbench/vtbench/data/RefrigerationDevices/RefrigerationDevices_TEST.ts
+
+image_generation:
+  generate_images: true
+  overwrite_existing: true
+
+model:
+  type: single_modal_chart
+  chart_model: deepcnn
+  input_channels: 3  
+  num_classes: 2
+
+chart_branches:
+  branch_1:
+    chart_type: scatter
+    color_mode: color      
+    label_mode: with_label 
+
+training:
+  batch_size: 32
+  epochs: 10
+  learning_rate: 0.0005
+
+output:
+  dir: RefrigerationDevices_results/single_chart/scatter/
+  save_model: true
