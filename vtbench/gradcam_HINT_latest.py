@@ -56,8 +56,8 @@ chart_config: Dict[str, str] = {
 }
 
 # Root paths
-DATA_ROOT    = "/Users/akkumy/Downloads/test_vtbench/vtbench/data"
-RESULTS_ROOT = "/Users/akkumy/Downloads/test_vtbench/vtbench/vtbench"
+DATA_ROOT    = "/vtbench/data"
+RESULTS_ROOT = "/vtbench/vtbench"
 IMAGE_ROOT   = "chart_images"
 DATASET_NAMES = ["PhalangesOutlinesCorrect","ChlorineConcentration","SonyAIBORobotSurface1","Adiac","FaceAll","FacesUCR",
                 "ArrowHead","CricketX","CricketY","CricketZ","InsectWingBeat","ToeSegmentation1","ToeSegmentation2",

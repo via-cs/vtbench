@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 
 # === CONFIGURATION ===
-data_root = "/Users/akkumy/Downloads/test_vtbench/vtbench/data"
+data_root = "/vtbench/data"
 datasets = ["Beef", "BeetleFly"]
 output_dir = "results/raw_overlay_no_tslearn"
 os.makedirs(output_dir, exist_ok=True)

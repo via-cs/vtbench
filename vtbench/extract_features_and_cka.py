@@ -169,5 +169,5 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, required=True, help="Name of the dataset")
     args = parser.parse_args()
     dataset_name = args.dataset
-    base_yaml = "/Users/akkumy/Downloads/test_vtbench/vtbench/vtbench/config/generated_configs"
+    base_yaml = "/vtbench/vtbench/config/generated_configs"
     run_cka_for_one_dataset(base_yaml, dataset_name, device)

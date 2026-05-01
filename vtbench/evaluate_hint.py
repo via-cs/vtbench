@@ -31,8 +31,8 @@ DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
 IMG_SIZE    = 124
 GRAYSCALE_INPUT = False
 
-DATA_ROOT    = "/Users/akkumy/Downloads/test_vtbench/vtbench/data"
-RESULTS_ROOT = "/Users/akkumy/Downloads/test_vtbench/vtbench/vtbench"
+DATA_ROOT    = "/vtbench/data"
+RESULTS_ROOT = "/vtbench/vtbench"
 IMAGE_ROOT   = "chart_images"
 
 ENCODING_TYPES = ["line", "bar", "area", "scatter"]

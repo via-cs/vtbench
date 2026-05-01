@@ -40,8 +40,8 @@ num_classes_map = {
 # Base YAML template
 template = """dataset:
   name: {dataset}
-  train_path: /Users/akkumy/Downloads/test_vtbench/vtbench/data/{dataset}/{dataset}_TRAIN.ts
-  test_path: /Users/akkumy/Downloads/test_vtbench/vtbench/data/{dataset}/{dataset}_TEST.ts
+  train_path: /vtbench/data/{dataset}/{dataset}_TRAIN.ts
+  test_path: /vtbench/data/{dataset}/{dataset}_TEST.ts
 image_generation:
   generate_images: true
   overwrite_existing: true
