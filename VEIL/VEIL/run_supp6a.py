@@ -33,17 +33,17 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from vtbench.data.loader import read_ucr                                   # noqa: E402
-from vtbench.data.ts_image_encodings import (                              # noqa: E402
+from data.loader import read_ucr                                   # noqa: E402
+from ts_image_encodings import (                              # noqa: E402
     get_encoding, get_rgb_stack, apply_colormap, RGB_STACK_PRESETS,
 )
-from vtbench.data.chart_generator import (                                 # noqa: E402
+from data.chart_generator import (                                 # noqa: E402
     create_line_chart, create_area_chart, create_bar_chart,
     create_scatter_chart, TimeSeriesImageDataset,
 )
-from vtbench.train.factory import get_chart_model                          # noqa: E402
+from train.factory import get_chart_model                          # noqa: E402
 
 CHART_IMAGE_ROOT = os.environ.get("CHART_IMAGE_ROOT", "/tmp/chart_images")
 
@@ -295,7 +295,8 @@ def _run_one(cfg, dataset, encoding, seed,
         return dict(accuracy=-1.0, train_time_s=0.0, flag_crashed=1,
                     note="empty_train_loader")
 
-    model = get_chart_model("deepcnn", input_channels=3, num_classes=num_classes).to(DEVICE)
+    model = get_chart_model(
+        "deepcnn", input_channels=3, num_classes=num_classes).to(DEVICE)
     opt = torch.optim.Adam(model.parameters(), lr=cfg["learning_rate"],
                            weight_decay=0.01)
     criterion = nn.CrossEntropyLoss()

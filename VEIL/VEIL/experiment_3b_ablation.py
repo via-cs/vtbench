@@ -8,10 +8,10 @@ import yaml
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
-from vtbench.train.trainer import train_model
-from vtbench.train.evaluate import evaluate_model
-from vtbench.data.loader import create_dataloaders
-from vtbench.utils.ablation import apply_ablation, ablation_type_name, chart_dir_for
+from train.trainer import train_model
+from train.evaluate import evaluate_model
+from data.loader import create_dataloaders
+from ablation import apply_ablation, ablation_type_name, chart_dir_for
 
 
 def load_config(path):
