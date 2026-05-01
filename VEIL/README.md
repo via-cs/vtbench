@@ -62,18 +62,6 @@ This will:
 #### `single_modal_chart.yaml`
 Runs a single chart-type image model (e.g., line, bar) using a CNN. Useful for testing visual representations alone.
 
-#### `two_branch.yaml`
-Combines chart image input with raw numerical data in a two-branch architecture. Compares unimodal vs. multimodal performance.
-
-#### `multi_modal_chart.yaml`
-Uses multiple chart types in parallel branches. Demonstrates how different visual representations complement each other.
-
-#### `supp/supp_3b_31.yaml` and `supp/supp_3b_crop.yaml`
-Chart-component perturbation experiments — apply controlled distortions (Gaussian blur, bar merging, alpha fading) to test encoding reliance.
-
-#### `supp/supp_6a_31.yaml` and `supp/supp_6a_crop.yaml`
-Cross-encoding comparison — train DeepCNN on 17 different visual encodings (4 chart + 8 math + 2 RGB + 3 colormap) on the same UCR datasets.
-
 
 ## Diagnostic experiments
 
