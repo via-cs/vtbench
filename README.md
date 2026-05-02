@@ -121,4 +121,11 @@ cd VEIL
 python main.py --config config/single_modal_chart.yaml
 ```
 
-This README now targets the VEIL subproject and its folder structure explicitly.
+## USE
+- Compare chart encodings – Train identical CNN backbones on line, area, bar, and scatter renditions of the same time series to measure how encoding choice affects representations.
+- Detect encoding hijacking – Compute Encoding Sensitivity Indices (ESI_CKA, ESI_PROBE) to quantify whether models rely on temporal structure or visual artifacts.
+- Test cross-encoding transfer – Use linear probing across chart types to see if features learned from one encoding generalize to another.
+- Visualize model attention – Generate Grad-CAM heatmaps to identify whether models focus on signal patterns, encoding-specific cues, or chart artifacts.
+- Quantify visual cue reliance – Apply controlled perturbations (blur, bar merging, alpha fading) and measure accuracy drops to diagnose encoding dependence.
+- Mitigate encoding bias – Run HINT-based attention guidance to redirect model focus toward semantically meaningful temporal regions
+- Analyze representations – Measure alignment between feature spaces using Centered Kernel Alignment (CKA), assess intrinsic dimensionality via PCA, and visualize class versus encoding clustering patterns with UMAP.
