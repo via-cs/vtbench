@@ -12,20 +12,20 @@ VEIL is a diagnostic framework for detecting and mitigating visual encoding hija
 
 ## VEIL folder structure
 
-- `vtbench/VEIL/VEIL/generate_configs_and_run.py` — primary entry point before running experiments
-- `vtbench/VEIL/VEIL/config/generated_configs` — YAML configuration files
-- `vtbench/VEIL/VEIL/data/` — data loading utilities and dataset helpers
-- `vtbench/VEIL/VEIL/train/` — training and evaluation pipelines
-- `vtbench/VEIL/VEIL/models/` — model definitions for chart and numerical branches
-- `vtbench/VEIL/VEIL/{dataset}_results/` — default output location for experiment results
-- `vtbench/VEIL/requirements.txt` — dependency list for running VEIL
+- `VEIL/VEIL/generate_configs_and_run.py` — primary entry point before running experiments
+- `VEIL/VEIL/config/generated_configs` — YAML configuration files
+- `VEIL/VEIL/data/` — data loading utilities and dataset helpers
+- `VEIL/VEIL/train/` — training and evaluation pipelines
+- `VEIL/VEIL/models/` — model definitions for chart and numerical branches
+- `VEIL/VEIL/{dataset}_results/` — default output location for experiment results
+- `VEIL/requirements.txt` — dependency list for running VEIL
 
 ## Requirements
 
 Install the VEIL dependencies:
 
 ```bash
-cd vtbench/VEIL
+cd VEIL
 pip install -r requirements.txt
 ```
 
@@ -51,17 +51,17 @@ From the project root, use the VEIL main script with a config file:
 
 - to create a specific YAML for a singular chart encoding (for a singular dataset)
 ```bash
-python vtbench/VEIL/VEIL/main.py --config vtbench/VEIL/VEIL/config/single_modal_chart.yaml
+python VEIL/VEIL/main.py --config VEIL/VEIL/config/single_modal_chart.yaml
 ```
 - to automate the creation of YAML files for all 4 chart encodings across all 31 UCR datasets
-[first traverse into vtbench/VEIL/VEIL]
+[first traverse into VEIL/VEIL]
 ```bash
-python generate_configs_and_run.py --config vtbench/VEIL/VEIL/config/single_modal_chart.yaml
+python generate_configs_and_run.py --config VEIL/VEIL/config/single_modal_chart.yaml
 ```
 
 ## Configuring experiments
 
-Example config files are stored in `vtbench/VEIL/VEIL/config/generated_config`:
+Example config files are stored in `VEIL/VEIL/config/generated_config`:
 
 - `single_modal_chart.yaml` — single chart image classification
 
@@ -106,7 +106,7 @@ output:
 ## Quick start
 
 ```bash
-cd vtbench/VEIL
+cd VEIL
 pip install -r requirements.txt
 cd VEIL
 python generate_configs_and_run.py
