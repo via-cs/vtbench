@@ -1,4 +1,5 @@
 # VEIL
+<img width="3527" height="605" alt="image" src="https://github.com/user-attachments/assets/d4873af8-3bde-459a-9381-9905ef08dd38" />
 
 This repository contains the VEIL research project for chart-based and multimodal time-series classification.
 
